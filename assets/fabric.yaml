@@ -1,0 +1,11 @@
+version: 1
+cortex:
+  agents:
+    - .fabric/agents/agent1.yaml
+    - .fabric/agents/agent2.yaml
+  skills:
+    - .fabric/skills/skill1.yaml
+    - .fabric/skills/skill2.yaml
+  actions:
+    - .fabric/actions/action1.yaml
+    - .fabric/actions/action2.yaml
