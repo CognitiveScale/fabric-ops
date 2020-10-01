@@ -26,7 +26,7 @@ func GlobDockerfiles(rootDir string) []string {
 func DockerBuildVersion(repoDir string) string {
 	var gitTagCmd = fmt.Sprint("cd ", repoDir, " && git rev-parse --short HEAD")
 	var tag = Native(gitTagCmd)
-	return fmt.Sprint("g", tag)
+	return fmt.Sprint("g", strings.TrimSpace(tag))
 }
 
 /*
@@ -35,12 +35,14 @@ docker tag ${IMAGE}:${DOCKER_IMAGE_TAG} ${DOCKER_IMAGE}
 cortex docker login
 docker push ${DOCKER_IMAGE}
 */
-
-func BuildAcrionImage(namespace string, name string, version string, dockerfile string, buildContext string, dockerRegistry string, cortexToken string) string {
+//TODO add command success validation and exception handling
+// Later this will be replaced with daemonless & rootless build
+func BuildActionImage(namespace string, name string, version string, dockerfile string, buildContext string, dockerRegistry string, cortexToken string) string {
 	var dockerImage = fmt.Sprint(namespace, "/", name, ":", version)
 	var dockerTag = fmt.Sprint(dockerRegistry, "/", dockerImage)
 
 	var dockerBuildCmd = strings.Join([]string{"docker build -t", dockerImage, "-f", dockerfile, buildContext}, " ")
+	fmt.Println(dockerBuildCmd)
 	var logs = Native(dockerBuildCmd)
 	fmt.Println(logs)
 
@@ -48,7 +50,7 @@ func BuildAcrionImage(namespace string, name string, version string, dockerfile 
 	logs = Native(dockerTagCmd)
 	fmt.Println(logs)
 
-	logs = Native(strings.Join([]string{"docker login", "-u", "cli", "--password", cortexToken, dockerRegistry}, ""))
+	logs = Native(strings.Join([]string{"docker login", "-u", "cli", "--password", cortexToken, dockerRegistry}, " "))
 
 	logs = Native(fmt.Sprint("docker push ", dockerTag))
 	fmt.Println(logs)
@@ -59,7 +61,7 @@ func BuildAcrionImage(namespace string, name string, version string, dockerfile 
 func Native(cmd string) string {
 	out, err := exec.Command("/bin/sh", "-c", cmd).Output()
 	if err != nil {
-		fmt.Printf("error %s", err)
+		fmt.Println(cmd, " failed with error ", err)
 	}
 	output := string(out)
 	return output
