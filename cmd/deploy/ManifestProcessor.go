@@ -12,6 +12,7 @@ func NewManifest(configPath string) Manifest {
 	viper.SetConfigFile(configPath)
 	viper.SetConfigType("yaml")
 	viper.ReadInConfig()
-	var manifest map[string]interface{}
+	var manifest Manifest
 	viper.UnmarshalKey("cortex", &manifest)
+	return manifest
 }

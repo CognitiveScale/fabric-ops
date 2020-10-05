@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
+	"log"
 	"os"
 	"path"
 	"strings"
@@ -32,20 +33,21 @@ var buildCmd = &cobra.Command{
 	Short: "Search for Dockerfile(s) in Git repo and builds Docker images",
 	Long:  `Follows convention: Build docker image using Dockerfile and repo root as build context, <DOCKER_PREGISTRY_PREFIX as namespace>/<image name as parent dir>:g<Git tag and version>, and return build image details`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Building Cortex Action image", args)
+		log.Println("Building Cortex Actions in repo checkout ", args[0])
 		var repoDir = args[0]
 		var dockerfiles = build.GlobDockerfiles(repoDir)
 
 		var gitTag = build.DockerBuildVersion(repoDir)
-
 		var namespace = viper.GetString("DOCKER_PREGISTRY_PREFIX")
 
 		var cortex = createCortexClientFromConfig()
 		var registry = cortex.GetDockerRegistry()
 
-		for _, dockerfile := range dockerfiles {
-			fmt.Println("Building ", dockerfile)
+		log.Println("Building with tag: ", gitTag, " and namespace: ", namespace, ". Pushing to registry: ", registry)
 
+		for _, dockerfile := range dockerfiles {
+			log.Println("Building ", dockerfile)
+			break
 			var name = path.Base(path.Dir(dockerfile))
 			build.BuildActionImage(namespace, name, gitTag, dockerfile, repoDir, registry, cortex.Token)
 		}
@@ -113,9 +115,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.fabric.yaml)")
 
-	rootCmd.AddCommand(buildCmd)
-
-	rootCmd.AddCommand(deployCmd)
+	rootCmd.AddCommand(buildCmd, deployCmd)
 }
 
 func initConfig() {

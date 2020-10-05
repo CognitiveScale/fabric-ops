@@ -2,6 +2,7 @@ package build
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,7 +26,7 @@ func GlobDockerfiles(rootDir string) []string {
 
 func DockerBuildVersion(repoDir string) string {
 	var gitTagCmd = fmt.Sprint("cd ", repoDir, " && git rev-parse --short HEAD")
-	var tag = Native(gitTagCmd)
+	var tag = NativeExitOnError(gitTagCmd)
 	return fmt.Sprint("g", strings.TrimSpace(tag))
 }
 
@@ -42,26 +43,36 @@ func BuildActionImage(namespace string, name string, version string, dockerfile 
 	var dockerTag = fmt.Sprint(dockerRegistry, "/", dockerImage)
 
 	var dockerBuildCmd = strings.Join([]string{"docker build -t", dockerImage, "-f", dockerfile, buildContext}, " ")
-	fmt.Println(dockerBuildCmd)
-	var logs = Native(dockerBuildCmd)
-	fmt.Println(logs)
+	log.Println("Building: ", dockerBuildCmd)
+	var logs = NativeExitOnError(dockerBuildCmd)
+	log.Println(logs)
 
 	var dockerTagCmd = strings.Join([]string{"docker tag", dockerImage, dockerTag}, " ")
-	logs = Native(dockerTagCmd)
-	fmt.Println(logs)
+	logs = NativeExitOnError(dockerTagCmd)
+	log.Println(logs)
 
-	logs = Native(strings.Join([]string{"docker login", "-u", "cli", "--password", cortexToken, dockerRegistry}, " "))
+	logs = NativeExitOnError(strings.Join([]string{"docker login", "-u", "cli", "--password", cortexToken, dockerRegistry}, " "))
 
-	logs = Native(fmt.Sprint("docker push ", dockerTag))
-	fmt.Println(logs)
+	logs = NativeExitOnError(fmt.Sprint("docker push ", dockerTag))
+	log.Println(logs)
 
 	return dockerTag
 }
 
-func Native(cmd string) string {
+/**
+This method executes shell commands and returns command output logs, but os.Exit if program returns exit code > 0. So caller doesn't have to handle error.
+We need to create other method to return error and don't exit for scenario where we shouldn't exit app on a command failure
+*/
+func NativeExitOnError(cmd string) string {
 	out, err := exec.Command("/bin/sh", "-c", cmd).Output()
 	if err != nil {
-		fmt.Println(cmd, " failed with error ", err)
+		if exitError, ok := err.(*exec.ExitError); ok {
+			exitCode := exitError.ExitCode()
+			if exitCode > 0 {
+				log.Fatalln(cmd, " Exit Code [", exitCode, "] failed with error ", err)
+				os.Exit(exitCode)
+			}
+		}
 	}
 	output := string(out)
 	return output
