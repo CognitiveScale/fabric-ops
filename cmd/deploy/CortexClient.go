@@ -28,7 +28,7 @@ func NewCortexClient(url string, account string, user string, password string) C
 		Url:     url,
 		Account: account,
 	}
-	var result, error = client.do(fmt.Sprint("/v2/admin/", account, "/users/authenticate"), HTTP_POST, body)
+	var result, error = client.post(fmt.Sprint("/v2/admin/", account, "/users/authenticate"), body)
 	if error != nil {
 		log.Fatalln(error)
 	}
@@ -46,7 +46,7 @@ func NewCortexClientExistingToken(url string, account string, token string) Cort
 }
 
 func (c *CortexClient) GetDockerRegistry() string {
-	var result, error = c.do("/v3/actions/_config", HTTP_GET, nil)
+	var result, error = c.get("/v3/actions/_config")
 	if error != nil {
 		log.Fatalln(error)
 	}
@@ -60,7 +60,7 @@ func (c *CortexClient) DeployAction(filepath string) string {
 		log.Fatalln(err)
 	}
 	actionType := gjson.Get(string(content), "actionType").String()
-	var result, error = c.do("/v3/actions?actionType="+actionType, HTTP_POST, content)
+	var result, error = c.post("/v3/actions?actionType="+actionType, content)
 	if error != nil {
 		log.Fatalln(error)
 	}
@@ -73,7 +73,7 @@ func (c *CortexClient) DeploySkill(filepath string) string {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	var result, error = c.do("/v3/catalog/skills", HTTP_POST, content)
+	var result, error = c.post("/v3/catalog/skills", content)
 	if error != nil {
 		log.Fatalln(error)
 	}
@@ -86,11 +86,15 @@ func (c *CortexClient) DeployAgent(filepath string) string {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	var result, error = c.do("/v3/catalog/agents", HTTP_POST, content)
+	var result, error = c.post("/v3/catalog/agents", content)
 	if error != nil {
 		log.Fatalln(error)
 	}
 	return string(result)
+}
+
+func (c *CortexClient) ExportAgents(exportDir string, agentNames ...string) {
+
 }
 
 func (c *CortexClient) getWithBody(path string, body []byte) ([]byte, error) {
