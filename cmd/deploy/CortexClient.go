@@ -5,11 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ghodss/yaml"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"reflect"
+	"strings"
 )
 
 const HTTP_POST = "POST"
@@ -60,6 +64,10 @@ func (c *CortexClient) DeployAction(filepath string) string {
 		log.Fatalln(err)
 	}
 	actionType := gjson.Get(string(content), "actionType").String()
+	return c.DeployActionJson(actionType, content)
+}
+
+func (c *CortexClient) DeployActionJson(actionType string, content []byte) string {
 	var result, error = c.post("/v3/actions?actionType="+actionType, content)
 	if error != nil {
 		log.Fatalln(error)
@@ -73,6 +81,10 @@ func (c *CortexClient) DeploySkill(filepath string) string {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	return c.DeploySkillJson([]byte(content))
+}
+
+func (c *CortexClient) DeploySkillJson(content []byte) string {
 	var result, error = c.post("/v3/catalog/skills", content)
 	if error != nil {
 		log.Fatalln(error)
@@ -86,6 +98,10 @@ func (c *CortexClient) DeployAgent(filepath string) string {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	return c.DeployAgentJson(content)
+}
+
+func (c *CortexClient) DeployAgentJson(content []byte) string {
 	var result, error = c.post("/v3/catalog/agents", content)
 	if error != nil {
 		log.Fatalln(error)
@@ -93,8 +109,83 @@ func (c *CortexClient) DeployAgent(filepath string) string {
 	return string(result)
 }
 
-func (c *CortexClient) ExportAgents(exportDir string, agentNames ...string) {
+func (c *CortexClient) DeployDatasetJson(content []byte) string {
+	var result, error = c.post("/v3/datasets", content)
+	if error != nil {
+		log.Fatalln(error)
+	}
+	return string(result)
+}
 
+func (c *CortexClient) DeploySnapshot(filepath string, actionImageMapping map[string]string) {
+	content, _ := ioutil.ReadFile(filepath)
+	jsonBytes, _ := yaml.YAMLToJSON(content)
+	snapshot := gjson.Parse(string(jsonBytes))
+	agent := snapshot.Get("agent")
+	skills := snapshot.Get("dependencies.skills")
+	actions := snapshot.Get("dependencies.actions")
+	datasets := snapshot.Get("dependencies.datasets")
+
+	datasets.ForEach(func(key, value gjson.Result) bool {
+		logs := c.DeployDatasetJson([]byte(value.Raw))
+		log.Println(logs)
+		return true
+	})
+
+	skills.ForEach(func(key, value gjson.Result) bool {
+		logs := c.DeploySkillJson([]byte(value.Raw))
+		log.Println(logs)
+		return true
+	})
+
+	actions.ForEach(func(key, value gjson.Result) bool {
+		if actionImageMapping != nil {
+			action := value.Map()
+			image := DockerImageName(action["image"].String())
+			image = actionImageMapping[image]
+			if image != "" {
+				//action["image"] = image
+				updated, _ := sjson.Set(value.Raw, "image", image)
+				value = gjson.Parse(updated)
+				fmt.Println(value.Raw)
+				fmt.Println(image)
+			}
+		}
+		logs := c.DeployActionJson(value.Get("type").String(), []byte(value.Raw))
+		log.Println(logs)
+		return true
+	})
+
+	logs := c.DeployAgentJson([]byte(agent.Raw))
+	log.Println(logs)
+}
+
+func (c *CortexClient) ExportAgents(exportDir string, agentNames ...string) {
+	for _, agentName := range agentNames {
+		res, _ := c.get("/v3/catalog/agents/" + agentName)
+		agentJson := gjson.Parse(string(res))
+		skills := agentJson.Get("skills.#.skillName").Array()
+		var actions []string
+
+		for _, skillNode := range skills {
+			skillName := skillNode.String()
+
+			res, _ = c.get("/v3/catalog/skills/" + skillName)
+			//START remove internal fields
+			var skillDef map[string]interface{}
+			json.Unmarshal(res, &skillDef)
+			clean(skillDef)
+			skillDefClean, _ := json.Marshal(skillDef)
+			println(string(skillDefClean))
+			//END remove internal fields
+			skillJson := gjson.Parse(string(res))
+			skillJson.Get("inputs.#.routing.*.action").ForEach(func(key, value gjson.Result) bool {
+				actions = append(actions, value.String())
+				return true
+			})
+			//c.post("/v3/catalog/skills/", []byte(skillJson.String()))
+		}
+	}
 }
 
 func (c *CortexClient) getWithBody(path string, body []byte) ([]byte, error) {
@@ -136,4 +227,32 @@ func (c *CortexClient) do(path string, method string, body []byte) ([]byte, erro
 	}
 	defer response.Body.Close()
 	return data, nil
+}
+
+func clean(obj map[string]interface{}) {
+	for key, val := range obj {
+		if skipKey(key) {
+			delete(obj, key)
+			continue
+		}
+		switch val.(type) {
+		case []interface{}:
+			for _, item := range val.([]interface{}) {
+				if reflect.ValueOf(item).Kind() == reflect.Map {
+					clean(item.(map[string]interface{}))
+				}
+			}
+		case map[string]interface{}:
+			clean(val.(map[string]interface{}))
+		}
+	}
+}
+
+func skipKey(key string) bool {
+	return strings.HasPrefix(key, "_")
+}
+
+func DockerImageName(dockerTag string) string {
+	splits := strings.Split(dockerTag, "/")
+	return strings.Split(splits[len(splits)-1], ":")[0]
 }

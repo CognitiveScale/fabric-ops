@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -20,11 +21,29 @@ var cfgFile = "resources/fabric-defaults.yml"
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "fabric",
+	Args:  validateArgs,
 	Short: "Cortex GitOps CLI for deployment of Cortex resources",
 	Long: `This app:
 		* Build & push Docker images for Cortex Action
 		* Deploy Cortex assets described in manifest fabric.yaml
 	`,
+	Run: func(cmd *cobra.Command, args []string) {
+		log.Println("Building Cortex Actions in repo checkout ", args[0])
+		var repoDir = args[0]
+		var dockerfiles = build.GlobDockerfiles(repoDir)
+
+		var gitTag = build.DockerBuildVersion(repoDir)
+		var namespace = viper.GetString("DOCKER_PREGISTRY_PREFIX")
+
+		dockerimages := buildActionImages(dockerfiles, repoDir, gitTag, namespace)
+		mapping := map[string]string{}
+		for _, image := range dockerimages {
+			mapping[deploy.DockerImageName(image)] = image
+		}
+
+		//deploy
+		deployCortexManifest(repoDir, mapping)
+	},
 }
 
 var buildCmd = &cobra.Command{
@@ -40,18 +59,25 @@ var buildCmd = &cobra.Command{
 		var gitTag = build.DockerBuildVersion(repoDir)
 		var namespace = viper.GetString("DOCKER_PREGISTRY_PREFIX")
 
-		var cortex = createCortexClientFromConfig()
-		var registry = cortex.GetDockerRegistry()
-
-		log.Println("Building with tag: ", gitTag, " and namespace: ", namespace, ". Pushing to registry: ", registry)
-
-		for _, dockerfile := range dockerfiles {
-			log.Println("Building ", dockerfile)
-			break
-			var name = path.Base(path.Dir(dockerfile))
-			build.BuildActionImage(namespace, name, gitTag, dockerfile, repoDir, registry, cortex.Token)
-		}
+		buildActionImages(dockerfiles, repoDir, gitTag, namespace)
 	},
+}
+
+func buildActionImages(dockerfiles []string, repoDir string, gitTag string, namespace string) []string {
+	var cortex = createCortexClientFromConfig()
+	var registry = cortex.GetDockerRegistry()
+
+	log.Println("Building with tag: ", gitTag, " and namespace: ", namespace, ". Pushing to registry: ", registry)
+
+	build.DockerLogin(registry, cortex.Token)
+
+	dockerimages := []string{}
+	for _, dockerfile := range dockerfiles {
+		log.Println("Building ", dockerfile)
+		var name = path.Base(path.Dir(dockerfile))
+		dockerimages = append(dockerimages, build.BuildActionImage(namespace, name, gitTag, dockerfile, filepath.Dir(dockerfile), registry))
+	}
+	return dockerimages
 }
 
 var deployCmd = &cobra.Command{
@@ -63,20 +89,27 @@ var deployCmd = &cobra.Command{
 		fmt.Println("Deploying Cortex resources from manifest fabric.yaml")
 		var repoDir = args[0]
 
-		var cortex = createCortexClientFromConfig()
-
-		//TODO add validation
-		manifest := deploy.NewManifest(repoDir + "/fabric.yaml")
-		for _, action := range manifest.Actions {
-			cortex.DeployAction(repoDir + "/" + action)
-		}
-		for _, skill := range manifest.Skills {
-			cortex.DeployAction(repoDir + "/" + skill)
-		}
-		for _, agent := range manifest.Agents {
-			cortex.DeployAction(repoDir + "/" + agent)
-		}
+		deployCortexManifest(repoDir, nil)
 	},
+}
+
+func deployCortexManifest(repoDir string, actionImageMapping map[string]string) {
+	var cortex = createCortexClientFromConfig()
+
+	//TODO add validation
+	manifest := deploy.NewManifest(repoDir + "/fabric.yaml")
+	for _, action := range manifest.Actions {
+		cortex.DeployAction(repoDir + "/" + action)
+	}
+	for _, skill := range manifest.Skills {
+		cortex.DeployAction(repoDir + "/" + skill)
+	}
+	for _, agent := range manifest.Agents {
+		cortex.DeployAction(repoDir + "/" + agent)
+	}
+	for _, snapshot := range manifest.Snapshots {
+		cortex.DeploySnapshot(repoDir+"/"+snapshot, actionImageMapping)
+	}
 }
 
 func createCortexClientFromConfig() deploy.CortexClient {

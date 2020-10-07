@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
+set -e
 
-export CORTEX_URL=https://api.dev01-cts-aic.insights.ai
-export CORTEX_ACCOUNT=cts-aic-dev
+export CORTEX_URL=https://api.anthem-modeloffice-workos.insights.ai
+export CORTEX_ACCOUNT=workos-dev
 export CORTEX_TOKEN=
 export CORTEX_USER=ljha
 export CORTEX_PASSWORD=
-export DOCKER_PREGISTRY_PREFIX=c12e
+export DOCKER_PREGISTRY_PREFIX=c12edemo
 
 #Build cmd tool. TODO build for windows, linux and mac
 function package() {
-    rm fabric
+    [ -e fabric ] && rm fabric
     go build -ldflags "-s -w" -o fabric main.go
     # upx can better compress binaries, but avoiding coz it GPL license and binary size is not important metric
     # upx -9 -k fabric
@@ -25,6 +26,11 @@ function deploy() {
     time ./fabric deploy $1
 }
 
+function all() {
+    ./fabric $1
+}
+
 package
-build "/Users/ljha/xcognitive/c12e-doc-sim"
-deploy "/Users/ljha/xcognitive/c12e-doc-sim"
+all "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"
+#build "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"
+#deploy "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"

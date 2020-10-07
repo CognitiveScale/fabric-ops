@@ -38,7 +38,7 @@ docker push ${DOCKER_IMAGE}
 */
 //TODO add command success validation and exception handling
 // Later this will be replaced with daemonless & rootless build
-func BuildActionImage(namespace string, name string, version string, dockerfile string, buildContext string, dockerRegistry string, cortexToken string) string {
+func BuildActionImage(namespace string, name string, version string, dockerfile string, buildContext string, dockerRegistry string) string {
 	var dockerImage = fmt.Sprint(namespace, "/", name, ":", version)
 	var dockerTag = fmt.Sprint(dockerRegistry, "/", dockerImage)
 
@@ -51,12 +51,15 @@ func BuildActionImage(namespace string, name string, version string, dockerfile 
 	logs = NativeExitOnError(dockerTagCmd)
 	log.Println(logs)
 
-	logs = NativeExitOnError(strings.Join([]string{"docker login", "-u", "cli", "--password", cortexToken, dockerRegistry}, " "))
-
 	logs = NativeExitOnError(fmt.Sprint("docker push ", dockerTag))
 	log.Println(logs)
 
 	return dockerTag
+}
+
+func DockerLogin(dockerRegistry string, cortexToken string) {
+	logs := NativeExitOnError(strings.Join([]string{"docker login", "-u", "cli", "--password", cortexToken, dockerRegistry}, " "))
+	log.Println(logs)
 }
 
 /**
@@ -66,6 +69,8 @@ We need to create other method to return error and don't exit for scenario where
 func NativeExitOnError(cmd string) string {
 	out, err := exec.Command("/bin/sh", "-c", cmd).Output()
 	if err != nil {
+		log.Fatalln(err)
+		log.Fatalln(out)
 		if exitError, ok := err.(*exec.ExitError); ok {
 			exitCode := exitError.ExitCode()
 			if exitCode > 0 {
@@ -75,5 +80,6 @@ func NativeExitOnError(cmd string) string {
 		}
 	}
 	output := string(out)
+	log.Println(output)
 	return output
 }

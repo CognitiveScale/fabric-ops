@@ -3,9 +3,10 @@ package deploy
 import "github.com/spf13/viper"
 
 type Manifest struct {
-	Agents  []string
-	Skills  []string
-	Actions []string
+	Agents    []string
+	Skills    []string
+	Actions   []string
+	Snapshots []string
 }
 
 func NewManifest(configPath string) Manifest {
