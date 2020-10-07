@@ -146,11 +146,13 @@ func (c *CortexClient) DeploySnapshot(filepath string, actionImageMapping map[st
 			image := DockerImageName(action["image"].String())
 			image = actionImageMapping[image]
 			if image != "" {
-				//action["image"] = image
+				//TODO evaluate better JSON substitution/templating
 				updated, _ := sjson.Set(value.Raw, "image", image)
+				podspec := value.Get("podSpec").String()
+				var podspecDef []map[string]interface{}
+				json.Unmarshal([]byte(podspec), &podspecDef)
+				updated, _ = sjson.Set(updated, "podSpec", podspecDef)
 				value = gjson.Parse(updated)
-				fmt.Println(value.Raw)
-				fmt.Println(image)
 			}
 		}
 		logs := c.DeployActionJson(value.Get("type").String(), []byte(value.Raw))
