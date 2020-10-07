@@ -63,6 +63,19 @@ var buildCmd = &cobra.Command{
 	},
 }
 
+var deployCmd = &cobra.Command{
+	Use:   "deploy",
+	Args:  validateArgs,
+	Short: "Deploys Cortex Resources from manifest fabric.yaml",
+	Long:  `Deploys Cortex Resources from manifest fabric.yaml`,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("Deploying Cortex resources from manifest fabric.yaml")
+		var repoDir = args[0]
+
+		deployCortexManifest(repoDir, nil)
+	},
+}
+
 func buildActionImages(dockerfiles []string, repoDir string, gitTag string, namespace string) []string {
 	var cortex = createCortexClientFromConfig()
 	var registry = cortex.GetDockerRegistry()
@@ -75,22 +88,23 @@ func buildActionImages(dockerfiles []string, repoDir string, gitTag string, name
 	for _, dockerfile := range dockerfiles {
 		log.Println("Building ", dockerfile)
 		var name = path.Base(path.Dir(dockerfile))
-		dockerimages = append(dockerimages, build.BuildActionImage(namespace, name, gitTag, dockerfile, filepath.Dir(dockerfile), registry))
+		dockerimages = append(dockerimages, build.BuildActionImage(namespace, name, gitTag, dockerfile, getBuildContext(repoDir, dockerfile), registry))
 	}
 	return dockerimages
 }
 
-var deployCmd = &cobra.Command{
-	Use:   "deploy",
-	Args:  validateArgs,
-	Short: "Deploys Cortex Resources from manifest fabric.yaml",
-	Long:  `Deploys Cortex Resources from manifest fabric.yaml`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Deploying Cortex resources from manifest fabric.yaml")
-		var repoDir = args[0]
-
-		deployCortexManifest(repoDir, nil)
-	},
+func getBuildContext(repoDir string, dockerfile string) string {
+	buildContext := viper.GetString("DOCKER_BUILD_CONTEXT")
+	switch buildContext {
+	case "", "DOCKERFILE_CURRENT_DIR":
+		return filepath.Dir(dockerfile)
+	case "DOCKERFILE_PARENT_DIR":
+		return filepath.Dir(filepath.Dir(dockerfile))
+	case "REPO_ROOT":
+		return repoDir
+	default:
+		return buildContext
+	}
 }
 
 func deployCortexManifest(repoDir string, actionImageMapping map[string]string) {

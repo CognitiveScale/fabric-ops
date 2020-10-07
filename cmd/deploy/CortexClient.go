@@ -119,8 +119,10 @@ func (c *CortexClient) DeployDatasetJson(content []byte) string {
 
 func (c *CortexClient) DeploySnapshot(filepath string, actionImageMapping map[string]string) {
 	content, _ := ioutil.ReadFile(filepath)
-	jsonBytes, _ := yaml.YAMLToJSON(content)
-	snapshot := gjson.Parse(string(jsonBytes))
+	if strings.HasSuffix(filepath, ".yaml") {
+		content, _ = yaml.YAMLToJSON(content)
+	}
+	snapshot := gjson.Parse(string(content))
 	agent := snapshot.Get("agent")
 	skills := snapshot.Get("dependencies.skills")
 	actions := snapshot.Get("dependencies.actions")

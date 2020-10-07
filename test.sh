@@ -7,6 +7,8 @@ export CORTEX_TOKEN=
 export CORTEX_USER=ljha
 export CORTEX_PASSWORD=
 export DOCKER_PREGISTRY_PREFIX=c12edemo
+export DOCKER_BUILD_CONTEXT=DOCKERFILE_CURRENT_DIR # DOCKERFILE_CURRENT_DIR | DOCKERFILE_PARENT_DIR | REPO_ROOT | </path/relative/to/repo>
+export DOCKER_BUILDKIT=1
 
 #Build cmd tool. TODO build for windows, linux and mac
 function package() {
@@ -30,7 +32,7 @@ function all() {
     ./fabric $1
 }
 
-package
+#package
 all "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"
 #build "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"
 #deploy "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"
