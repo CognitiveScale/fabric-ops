@@ -6,9 +6,10 @@ export CORTEX_ACCOUNT=workos-dev
 export CORTEX_TOKEN=
 export CORTEX_USER=ljha
 export CORTEX_PASSWORD=
-export DOCKER_PREGISTRY_PREFIX=c12edemo
+export DOCKER_PREGISTRY_PREFIX=c12e
+export DOCKER_PREGISTRY_URL=
 export DOCKER_BUILD_CONTEXT=DOCKERFILE_CURRENT_DIR # DOCKERFILE_CURRENT_DIR | DOCKERFILE_PARENT_DIR | REPO_ROOT | </path/relative/to/repo>
-export DOCKER_BUILDKIT=1
+#export DOCKER_BUILDKIT=1
 
 #Build cmd tool. TODO build for windows, linux and mac
 function package() {
@@ -32,7 +33,9 @@ function all() {
     ./fabric $1
 }
 
-#package
-all "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"
+package
+# fabric calls build and pass result of build to deploy for image substitution in action definition.
+# calling `fabric deploy` without result of build will not perform image substitution and action deployment may fail, unless deploying action in same DCI from where its exported or image exists in the DCI (may be manually copied or docker registry is shared within multiple DCIs)
+all "/Users/ljha/xcognitive/cortex-reference-models"
 #build "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"
 #deploy "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"

@@ -77,8 +77,11 @@ var deployCmd = &cobra.Command{
 }
 
 func buildActionImages(dockerfiles []string, repoDir string, gitTag string, namespace string) []string {
-	var cortex = createCortexClientFromConfig()
-	var registry = cortex.GetDockerRegistry()
+	cortex := createCortexClientFromConfig()
+	registry := viper.GetString("DOCKER_PREGISTRY_URL")
+	if registry == "" {
+		registry = cortex.GetDockerRegistry()
+	}
 
 	log.Println("Building with tag: ", gitTag, " and namespace: ", namespace, ". Pushing to registry: ", registry)
 

@@ -24,8 +24,10 @@ func GlobDockerfiles(rootDir string) []string {
 	return fileList
 }
 
+//TODO use Go Git client to avoid dependency on Git CLI
 func DockerBuildVersion(repoDir string) string {
-	var gitTagCmd = fmt.Sprint("cd ", repoDir, " && git rev-parse --short HEAD")
+	//git describe --long --always --dirty --match='v*.*'
+	var gitTagCmd = fmt.Sprint("cd ", repoDir, " && git rev-parse --short HEAD") // TODO check git describe for dirty flag
 	var tag = NativeExitOnError(gitTagCmd)
 	return fmt.Sprint("g", strings.TrimSpace(tag))
 }
@@ -80,6 +82,5 @@ func NativeExitOnError(cmd string) string {
 		}
 	}
 	output := string(out)
-	log.Println(output)
 	return output
 }
