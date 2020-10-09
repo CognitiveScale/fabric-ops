@@ -12,7 +12,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strings"
 )
 
@@ -146,8 +145,12 @@ func (c *CortexClient) DeploySnapshot(filepath string, actionImageMapping map[st
 			image := DockerImageName(action["image"].String())
 			image = actionImageMapping[image]
 			if image != "" {
-				//TODO evaluate better JSON substitution/templating
+				//TODO - [2nd iteration] - evaluate better JSON substitution/templating. Need to support: variable substitution in connections,
+				// support differ action config across env, ex.
+				// 	higher resource limit (or cpu in dev vs gpu in prod) in prod compare to dev (podspec json substitution)
+				//	higher scale count in prod (action config substitution)
 				updated, _ := sjson.Set(value.Raw, "image", image)
+				//parse podspec json into object before setting, for correct formatting
 				podspec := value.Get("podSpec").String()
 				var podspecDef []map[string]interface{}
 				json.Unmarshal([]byte(podspec), &podspecDef)
@@ -162,34 +165,6 @@ func (c *CortexClient) DeploySnapshot(filepath string, actionImageMapping map[st
 
 	logs := c.DeployAgentJson([]byte(agent.Raw))
 	log.Println(logs)
-}
-
-func (c *CortexClient) ExportAgents(exportDir string, agentNames ...string) {
-	for _, agentName := range agentNames {
-		res, _ := c.get("/v3/catalog/agents/" + agentName)
-		agentJson := gjson.Parse(string(res))
-		skills := agentJson.Get("skills.#.skillName").Array()
-		var actions []string
-
-		for _, skillNode := range skills {
-			skillName := skillNode.String()
-
-			res, _ = c.get("/v3/catalog/skills/" + skillName)
-			//START remove internal fields
-			var skillDef map[string]interface{}
-			json.Unmarshal(res, &skillDef)
-			clean(skillDef)
-			skillDefClean, _ := json.Marshal(skillDef)
-			println(string(skillDefClean))
-			//END remove internal fields
-			skillJson := gjson.Parse(string(res))
-			skillJson.Get("inputs.#.routing.*.action").ForEach(func(key, value gjson.Result) bool {
-				actions = append(actions, value.String())
-				return true
-			})
-			//c.post("/v3/catalog/skills/", []byte(skillJson.String()))
-		}
-	}
 }
 
 func (c *CortexClient) getWithBody(path string, body []byte) ([]byte, error) {
@@ -231,29 +206,6 @@ func (c *CortexClient) do(path string, method string, body []byte) ([]byte, erro
 	}
 	defer response.Body.Close()
 	return data, nil
-}
-
-func clean(obj map[string]interface{}) {
-	for key, val := range obj {
-		if skipKey(key) {
-			delete(obj, key)
-			continue
-		}
-		switch val.(type) {
-		case []interface{}:
-			for _, item := range val.([]interface{}) {
-				if reflect.ValueOf(item).Kind() == reflect.Map {
-					clean(item.(map[string]interface{}))
-				}
-			}
-		case map[string]interface{}:
-			clean(val.(map[string]interface{}))
-		}
-	}
-}
-
-func skipKey(key string) bool {
-	return strings.HasPrefix(key, "_")
 }
 
 func DockerImageName(dockerTag string) string {
