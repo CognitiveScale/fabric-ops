@@ -1,4 +1,4 @@
-#GitOps Tool for Fabric
+# GitOps Tool for Fabric
 
 https://docs.google.com/document/d/13bP7agrn3RpcWMutc5WbpV_Cusalg2ejTpx17ecudFY/edit#heading=h.q117vxrv0r3w
 
