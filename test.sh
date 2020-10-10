@@ -7,7 +7,7 @@ export CORTEX_TOKEN=
 export CORTEX_USER=ljha
 export CORTEX_PASSWORD=
 export DOCKER_PREGISTRY_PREFIX=c12e
-export DOCKER_PREGISTRY_URL=
+export DOCKER_PREGISTRY_URL=private-registry.dev01-cts-aic.insights.ai
 export DOCKER_BUILD_CONTEXT=DOCKERFILE_CURRENT_DIR # DOCKERFILE_CURRENT_DIR | DOCKERFILE_PARENT_DIR | REPO_ROOT | </path/relative/to/repo>
 #export DOCKER_BUILDKIT=1
 
@@ -33,7 +33,13 @@ function all() {
     ./fabric $1
 }
 
+function dockerLogin() {
+    ./fabric dockerAuth $1 $2 $3
+}
+
 package
+#dockerLogin $DOCKER_PREGISTRY_URL 'cli' $CORTEX_TOKEN
+
 # fabric calls build and pass result of build to deploy for image substitution in action definition.
 # calling `fabric deploy` without result of build will not perform image substitution and action deployment may fail, unless deploying action in same DCI
 # from where its exported or image exists in the DCI (may be manually copied or docker registry is shared within multiple DCIs)

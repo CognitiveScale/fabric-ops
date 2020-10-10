@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fabric-ops/cmd/build"
 	"fabric-ops/cmd/deploy"
+	"fmt"
 	"github.com/spf13/cobra"
 	"log"
 	"os"
@@ -104,6 +105,8 @@ func buildActionImages(dockerfiles []string, repoDir string, gitTag string, name
 	registry := viper.GetString("DOCKER_PREGISTRY_URL")
 	if registry == "" {
 		registry = cortex.GetDockerRegistry()
+	} else {
+		registry = fmt.Sprint(strings.Trim(registry, "/"), "/", cortex.Account)
 	}
 
 	log.Println("Building with tag: ", gitTag, " and namespace: ", namespace, ". Pushing to registry: ", registry)
@@ -135,27 +138,27 @@ func deployCortexManifest(repoDir string, actionImageMapping map[string]string) 
 	var cortex = createCortexClientFromConfig()
 
 	//TODO add validation
-	manifest := deploy.NewManifest(repoDir + "/fabric.yaml")
+	manifest := deploy.NewManifest(path.Join(repoDir, "fabric.yaml"))
 	for _, action := range manifest.Actions {
-		cortex.DeployAction(repoDir + "/" + action)
+		cortex.DeployAction(path.Join(repoDir, action))
 	}
 	for _, skill := range manifest.Skills {
-		cortex.DeployAction(repoDir + "/" + skill)
+		cortex.DeploySkill(path.Join(repoDir, skill))
 	}
 	for _, agent := range manifest.Agents {
-		cortex.DeployAction(repoDir + "/" + agent)
+		cortex.DeployAgent(path.Join(repoDir, agent))
 	}
 	for _, snapshot := range manifest.Snapshots {
-		cortex.DeploySnapshot(repoDir+"/"+snapshot, actionImageMapping)
+		cortex.DeploySnapshot(path.Join(repoDir, snapshot), actionImageMapping)
 	}
 }
 
 func createCortexClientFromConfig() deploy.CortexClient {
-	var url = viper.GetString("CORTEX_URL")
-	var account = viper.GetString("CORTEX_ACCOUNT")
-	var user = viper.GetString("CORTEX_USER")
-	var password = viper.GetString("CORTEX_PASSWORD")
-	var token = viper.GetString("CORTEX_TOKEN")
+	var url = strings.TrimSpace(strings.Trim(viper.GetString("CORTEX_URL"), "/"))
+	var account = strings.TrimSpace(viper.GetString("CORTEX_ACCOUNT"))
+	var user = strings.TrimSpace(viper.GetString("CORTEX_USER"))
+	var password = strings.TrimSpace(viper.GetString("CORTEX_PASSWORD"))
+	var token = strings.TrimSpace(viper.GetString("CORTEX_TOKEN"))
 
 	var cortex deploy.CortexClient
 	if len(strings.TrimSpace(token)) > 0 {
