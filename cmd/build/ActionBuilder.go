@@ -2,6 +2,7 @@ package build
 
 import (
 	"fmt"
+	"github.com/go-git/go-git/v5"
 	"log"
 	"os"
 	"os/exec"
@@ -24,12 +25,25 @@ func GlobDockerfiles(rootDir string) []string {
 	return fileList
 }
 
-//TODO use Go Git client to avoid dependency on Git CLI
 func DockerBuildVersion(repoDir string) string {
 	//git describe --long --always --dirty --match='v*.*'
-	var gitTagCmd = fmt.Sprint("cd ", repoDir, " && git rev-parse --short HEAD") // TODO check git describe for dirty flag
-	var tag = NativeExitOnError(gitTagCmd)
-	return fmt.Sprint("g", strings.TrimSpace(tag))
+	// git describe is not implemented in go-git library, hence using format <branch name>-<short commit hash>
+	repo, err := git.PlainOpen(repoDir)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	ref, err := repo.Head()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	branch := ref.Name().Short()
+	hash := ref.Hash().String()[0:7]
+	if branch == "" || hash == "" {
+		log.Fatalln("Failed to fetch branch and HEAD from repo: "+repoDir, err)
+		os.Exit(1)
+	}
+	tag := strings.Join([]string{hash, branch}, "-")
+	return tag
 }
 
 /*
@@ -59,8 +73,8 @@ func BuildActionImage(namespace string, name string, version string, dockerfile 
 	return dockerTag
 }
 
-func DockerLogin(dockerRegistry string, cortexToken string) {
-	logs := NativeExitOnError(strings.Join([]string{"docker login", "-u", "cli", "--password", cortexToken, dockerRegistry}, " "))
+func DockerLogin(dockerRegistry string, dockerUser string, dockerPassword string) {
+	logs := NativeExitOnError(strings.Join([]string{"docker login", "-u", dockerUser, "--password", dockerPassword, dockerRegistry}, " "))
 	log.Println(logs)
 }
 

@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fabric-ops/cmd/build"
 	"fabric-ops/cmd/deploy"
-	"fmt"
-	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"log"
 	"os"
@@ -16,9 +14,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var cfgFile = "resources/fabric-defaults.yml"
-
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "fabric",
 	Args:  validateArgs,
@@ -69,10 +64,38 @@ var deployCmd = &cobra.Command{
 	Short: "Deploys Cortex Resources from manifest fabric.yaml",
 	Long:  `Deploys Cortex Resources from manifest fabric.yaml`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Deploying Cortex resources from manifest fabric.yaml")
+		log.Println("Deploying Cortex resources from manifest fabric.yaml")
 		var repoDir = args[0]
+		/*
+			`actionImageMapping` is actionName (and docker image name) to docker image URL in registry mapping. This is required for substituting
+			docker image in action definition exported from one environment and deploying to other environment.
 
+			Currently, invoking this will not perform docker image substitution and action deployment may fail, unless deploying action in same DCI from where
+			its exported or image exists in the DCI (may be manually copied or docker registry is shared within multiple DCIs)
+
+			Alternatively, we can query docker registry based on image name. But this will add dependency on registry tools/plugins for search. Better use root cmd for action substitution
+		*/
 		deployCortexManifest(repoDir, nil)
+	},
+}
+
+var dockerLoginCmd = &cobra.Command{
+	Use: "dockerAuth",
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) < 3 {
+			return errors.New("requires 3 args: <DockerRegistryURL> <User> <Password>")
+		}
+		return nil
+	},
+	Short: "Does Docker login for pushing images",
+	Long:  `Does Docker login for pushing images`,
+	Run: func(cmd *cobra.Command, args []string) {
+		dockerRegistry := args[0]
+		dockerUser := args[1]
+		dockerPassword := args[2]
+
+		build.DockerLogin(dockerRegistry, dockerUser, dockerPassword)
+		log.Println("Docker login successful")
 	},
 }
 
@@ -84,8 +107,6 @@ func buildActionImages(dockerfiles []string, repoDir string, gitTag string, name
 	}
 
 	log.Println("Building with tag: ", gitTag, " and namespace: ", namespace, ". Pushing to registry: ", registry)
-
-	build.DockerLogin(registry, cortex.Token)
 
 	dockerimages := []string{}
 	for _, dockerfile := range dockerfiles {
@@ -156,39 +177,17 @@ func validateArgs(cmd *cobra.Command, args []string) error {
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		log.Fatalln(err)
 		os.Exit(1)
 	}
 }
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.fabric.yaml)")
-
-	rootCmd.AddCommand(buildCmd, deployCmd)
+	rootCmd.AddCommand(buildCmd, deployCmd, dockerLoginCmd)
 }
 
 func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		home, err := homedir.Dir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		// Search config in home directory with name ".fabric" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigName(".fabric")
-	}
-
-	viper.AutomaticEnv() // read in environment variables that match
-
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
-	}
+	// currently only reading config from environment variables are supported, later we need to support other config store like Vault
+	viper.AutomaticEnv()
 }

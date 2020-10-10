@@ -35,7 +35,8 @@ function all() {
 
 package
 # fabric calls build and pass result of build to deploy for image substitution in action definition.
-# calling `fabric deploy` without result of build will not perform image substitution and action deployment may fail, unless deploying action in same DCI from where its exported or image exists in the DCI (may be manually copied or docker registry is shared within multiple DCIs)
+# calling `fabric deploy` without result of build will not perform image substitution and action deployment may fail, unless deploying action in same DCI
+# from where its exported or image exists in the DCI (may be manually copied or docker registry is shared within multiple DCIs)
 all "/Users/ljha/xcognitive/cortex-reference-models"
 #build "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"
 #deploy "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"
