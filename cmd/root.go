@@ -27,10 +27,9 @@ var rootCmd = &cobra.Command{
 		log.Println("Building Cortex Actions in repo checkout ", args[0])
 		var repoDir = args[0]
 		var dockerfiles = build.GlobDockerfiles(repoDir)
-
+		log.Println("Repo ", repoDir, " Dockerfiles ", dockerfiles)
 		var gitTag = build.DockerBuildVersion(repoDir)
 		var namespace = viper.GetString("DOCKER_PREGISTRY_PREFIX")
-
 		dockerimages := buildActionImages(dockerfiles, repoDir, gitTag, namespace)
 		mapping := map[string]string{}
 		for _, image := range dockerimages {
@@ -88,8 +87,8 @@ var dockerLoginCmd = &cobra.Command{
 		}
 		return nil
 	},
-	Short: "Does Docker login for pushing images",
-	Long:  `Does Docker login for pushing images`,
+	Short: "Docker login for pushing images",
+	Long:  "Docker login for pushing images. Usage: fabric dockerAuth <DockerRegistryURL> <User> <Password> ",
 	Run: func(cmd *cobra.Command, args []string) {
 		dockerRegistry := args[0]
 		dockerUser := args[1]
@@ -139,16 +138,16 @@ func deployCortexManifest(repoDir string, actionImageMapping map[string]string) 
 
 	//TODO add validation
 	manifest := deploy.NewManifest(path.Join(repoDir, "fabric.yaml"))
-	for _, action := range manifest.Actions {
+	for _, action := range manifest.Cortex.Actions {
 		cortex.DeployAction(path.Join(repoDir, action))
 	}
-	for _, skill := range manifest.Skills {
+	for _, skill := range manifest.Cortex.Skills {
 		cortex.DeploySkill(path.Join(repoDir, skill))
 	}
-	for _, agent := range manifest.Agents {
+	for _, agent := range manifest.Cortex.Agents {
 		cortex.DeployAgent(path.Join(repoDir, agent))
 	}
-	for _, snapshot := range manifest.Snapshots {
+	for _, snapshot := range manifest.Cortex.Snapshots {
 		cortex.DeploySnapshot(path.Join(repoDir, snapshot), actionImageMapping)
 	}
 }
@@ -162,8 +161,14 @@ func createCortexClientFromConfig() deploy.CortexClient {
 
 	var cortex deploy.CortexClient
 	if len(strings.TrimSpace(token)) > 0 {
+		if url == "" || token == "" {
+			log.Fatalln(" Cortex URL or Token not provided. Either token or user/password need to be provided.")
+		}
 		cortex = deploy.NewCortexClientExistingToken(url, account, token)
 	} else {
+		if url == "" || user == "" || password == "" {
+			log.Fatalln(" Cortex URL or user/password not provided. Either token or user/password need to be provided.")
+		}
 		cortex = deploy.NewCortexClient(url, account, user, password)
 	}
 	return cortex

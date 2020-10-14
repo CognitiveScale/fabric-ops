@@ -1,19 +1,30 @@
 package deploy
 
-import "github.com/spf13/viper"
+import (
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	"log"
+)
 
 type Manifest struct {
-	Agents    []string
-	Skills    []string
-	Actions   []string
-	Snapshots []string
+	Cortex struct {
+		Agents    []string
+		Skills    []string
+		Actions   []string
+		Snapshots []string
+	} `yaml: "cortex"`
 }
 
 func NewManifest(configPath string) Manifest {
-	viper.SetConfigFile(configPath)
-	viper.SetConfigType("yaml")
-	viper.ReadInConfig()
+	yamlFile, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		log.Fatalln("Failed to read manifest file ", configPath, " Error: ", err)
+	}
+
 	var manifest Manifest
-	viper.UnmarshalKey("cortex", &manifest)
+	err = yaml.Unmarshal(yamlFile, &manifest)
+	if err != nil {
+		log.Fatalln("Failed to parse manifest file ", configPath, " Error: ", err)
+	}
 	return manifest
 }

@@ -142,8 +142,8 @@ func (c *CortexClient) DeploySnapshot(filepath string, actionImageMapping map[st
 	actions.ForEach(func(key, value gjson.Result) bool {
 		if actionImageMapping != nil {
 			action := value.Map()
-			image := DockerImageName(action["image"].String())
-			image = actionImageMapping[image]
+			imageName := DockerImageName(action["image"].String())
+			image := actionImageMapping[imageName]
 			if image != "" {
 				//TODO - [2nd iteration] - evaluate better JSON substitution/templating. Need to support: variable substitution in connections,
 				// support differ action config across env, ex.
@@ -156,6 +156,8 @@ func (c *CortexClient) DeploySnapshot(filepath string, actionImageMapping map[st
 				json.Unmarshal([]byte(podspec), &podspecDef)
 				updated, _ = sjson.Set(updated, "podSpec", podspecDef)
 				value = gjson.Parse(updated)
+			} else {
+				log.Println("[IMP] Docker image ", action["image"].String(), " used by action ", action["name"].String(), " is not built in this run, make sure it exists in docker registry")
 			}
 		}
 		logs := c.DeployActionJson(value.Get("type").String(), []byte(value.Raw))

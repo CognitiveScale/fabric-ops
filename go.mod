@@ -9,4 +9,5 @@ require (
 	github.com/spf13/viper v1.7.1
 	github.com/tidwall/gjson v1.6.1
 	github.com/tidwall/sjson v1.1.2
+	gopkg.in/yaml.v2 v2.2.4
 )

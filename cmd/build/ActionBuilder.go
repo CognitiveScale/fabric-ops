@@ -30,7 +30,7 @@ func DockerBuildVersion(repoDir string) string {
 	// git describe is not implemented in go-git library, hence using format <branch name>-<short commit hash>
 	repo, err := git.PlainOpen(repoDir)
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatalln("Failed to get commit hash. ", repoDir, " must point to root of Git repo checkout. Error: ", err)
 	}
 	ref, err := repo.Head()
 	if err != nil {
@@ -43,6 +43,7 @@ func DockerBuildVersion(repoDir string) string {
 		os.Exit(1)
 	}
 	tag := strings.Join([]string{hash, branch}, "-")
+	log.Println("DockerBuildVersion", tag)
 	return tag
 }
 
@@ -65,8 +66,8 @@ func BuildActionImage(namespace string, name string, version string, dockerfile 
 
 	var dockerTagCmd = strings.Join([]string{"docker tag", dockerImage, dockerTag}, " ")
 	logs = NativeExitOnError(dockerTagCmd)
-	log.Println(logs)
 
+	log.Println("Pushing docker image tag: ", dockerTag)
 	logs = NativeExitOnError(fmt.Sprint("docker push ", dockerTag))
 	log.Println(logs)
 
