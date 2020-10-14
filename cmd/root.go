@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -16,9 +15,10 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "fabric",
-	Args:  validateArgs,
-	Short: "Cortex GitOps CLI for deployment of Cortex resources",
+	Use:                   "fabric <RepoRootDir>",
+	Args:                  validateArgs,
+	DisableFlagsInUseLine: true,
+	Short:                 "Cortex GitOps CLI for deployment of Cortex resources",
 	Long: `This app:
 		* Build & push Docker images for Cortex Action
 		* Deploy Cortex assets described in manifest fabric.yaml
@@ -42,10 +42,11 @@ var rootCmd = &cobra.Command{
 }
 
 var buildCmd = &cobra.Command{
-	Use:   "build",
-	Args:  validateArgs,
-	Short: "Search for Dockerfile(s) in Git repo and builds Docker images",
-	Long:  `Follows convention: Build docker image using Dockerfile and repo root as build context, <DOCKER_PREGISTRY_PREFIX as namespace>/<image name as parent dir>:g<Git tag and version>, and return build image details`,
+	Use:                   "build  <RepoRootDir>",
+	Args:                  validateArgs,
+	DisableFlagsInUseLine: true,
+	Short:                 "Search for Dockerfile(s) in Git repo and builds Docker images",
+	Long:                  `Follows convention: Build docker image using Dockerfile and configured build context, <DOCKER_PREGISTRY_PREFIX as namespace>/<image name as parent dir>:g<Git tag and version>, and return build image details`,
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Println("Building Cortex Actions in repo checkout ", args[0])
 		var repoDir = args[0]
@@ -59,10 +60,11 @@ var buildCmd = &cobra.Command{
 }
 
 var deployCmd = &cobra.Command{
-	Use:   "deploy",
-	Args:  validateArgs,
-	Short: "Deploys Cortex Resources from manifest fabric.yaml",
-	Long:  `Deploys Cortex Resources from manifest fabric.yaml`,
+	Use:                   "deploy  <RepoRootDir>",
+	Args:                  validateArgs,
+	DisableFlagsInUseLine: true,
+	Short:                 "Deploys Cortex Resources from manifest fabric.yaml",
+	Long:                  `Deploys Cortex Resources from manifest fabric.yaml`,
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Println("Deploying Cortex resources from manifest fabric.yaml")
 		var repoDir = args[0]
@@ -80,15 +82,16 @@ var deployCmd = &cobra.Command{
 }
 
 var dockerLoginCmd = &cobra.Command{
-	Use: "dockerAuth",
+	Use: "dockerAuth <DockerRegistryURL> <User> <Password>",
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) < 3 {
 			return errors.New("requires 3 args: <DockerRegistryURL> <User> <Password>")
 		}
 		return nil
 	},
-	Short: "Docker login for pushing images",
-	Long:  "Docker login for pushing images. Usage: fabric dockerAuth <DockerRegistryURL> <User> <Password> ",
+	DisableFlagsInUseLine: true,
+	Short:                 "Docker login for pushing images",
+	Long:                  "Docker login for pushing images",
 	Run: func(cmd *cobra.Command, args []string) {
 		dockerRegistry := args[0]
 		dockerUser := args[1]
@@ -113,7 +116,7 @@ func buildActionImages(dockerfiles []string, repoDir string, gitTag string, name
 	dockerimages := []string{}
 	for _, dockerfile := range dockerfiles {
 		log.Println("Building ", dockerfile)
-		var name = path.Base(path.Dir(dockerfile))
+		var name = filepath.Base(filepath.Dir(dockerfile))
 		dockerimages = append(dockerimages, build.BuildActionImage(namespace, name, gitTag, dockerfile, getBuildContext(repoDir, dockerfile), registry))
 	}
 	return dockerimages
@@ -137,18 +140,18 @@ func deployCortexManifest(repoDir string, actionImageMapping map[string]string) 
 	var cortex = createCortexClientFromConfig()
 
 	//TODO add validation
-	manifest := deploy.NewManifest(path.Join(repoDir, "fabric.yaml"))
+	manifest := deploy.NewManifest(filepath.Join(repoDir, "fabric.yaml"))
 	for _, action := range manifest.Cortex.Actions {
-		cortex.DeployAction(path.Join(repoDir, action))
+		cortex.DeployAction(filepath.Join(repoDir, action))
 	}
 	for _, skill := range manifest.Cortex.Skills {
-		cortex.DeploySkill(path.Join(repoDir, skill))
+		cortex.DeploySkill(filepath.Join(repoDir, skill))
 	}
 	for _, agent := range manifest.Cortex.Agents {
-		cortex.DeployAgent(path.Join(repoDir, agent))
+		cortex.DeployAgent(filepath.Join(repoDir, agent))
 	}
 	for _, snapshot := range manifest.Cortex.Snapshots {
-		cortex.DeploySnapshot(path.Join(repoDir, snapshot), actionImageMapping)
+		cortex.DeploySnapshot(filepath.Join(repoDir, snapshot), actionImageMapping)
 	}
 }
 

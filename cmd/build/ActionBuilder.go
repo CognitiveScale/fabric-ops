@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -84,7 +85,15 @@ This method executes shell commands and returns command output logs, but os.Exit
 We need to create other method to return error and don't exit for scenario where we shouldn't exit app on a command failure
 */
 func NativeExitOnError(cmd string) string {
-	out, err := exec.Command("/bin/sh", "-c", cmd).Output()
+	hostOs := runtime.GOOS
+	var shell *exec.Cmd
+	switch hostOs {
+	case "windows":
+		shell = exec.Command("cmd", "/C", cmd)
+	default:
+		shell = exec.Command("/bin/sh", "-c", cmd)
+	}
+	out, err := shell.Output()
 	if err != nil {
 		log.Fatalln(err)
 		log.Fatalln(out)
