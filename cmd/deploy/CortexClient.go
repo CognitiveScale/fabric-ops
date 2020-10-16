@@ -117,9 +117,15 @@ func (c *CortexClient) DeployDatasetJson(content []byte) string {
 }
 
 func (c *CortexClient) DeploySnapshot(filepath string, actionImageMapping map[string]string) {
-	content, _ := ioutil.ReadFile(filepath)
+	content, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		log.Fatalln("Failed to read Cortex Agent Snapshot file ", filepath, " Error: ", err)
+	}
 	if strings.HasSuffix(filepath, ".yaml") {
-		content, _ = yaml.YAMLToJSON(content)
+		content, err = yaml.YAMLToJSON(content)
+		if err != nil {
+			log.Fatalln("Failed to parse Cortex Agent Snapshot file ", filepath, " Error: ", err)
+		}
 	}
 	snapshot := gjson.Parse(string(content))
 	agent := snapshot.Get("agent")

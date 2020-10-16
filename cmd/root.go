@@ -14,14 +14,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+const defaultManifestFile = "fabric.yaml"
+
 var rootCmd = &cobra.Command{
-	Use:                   "fabric <RepoRootDir>",
+	Use:                   "fabric <RepoRootDir> [-m <manifest file>]",
 	Args:                  validateArgs,
 	DisableFlagsInUseLine: true,
 	Short:                 "Cortex GitOps CLI for deployment of Cortex resources",
 	Long: `This app:
 		* Build & push Docker images for Cortex Action
-		* Deploy Cortex assets described in manifest fabric.yaml
+		* Deploy Cortex assets described in manifest file <fabric.yaml>
 	`,
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Println("Building Cortex Actions in repo checkout ", args[0])
@@ -36,8 +38,12 @@ var rootCmd = &cobra.Command{
 			mapping[deploy.DockerImageName(image)] = image
 		}
 
+		manifestFile := cmd.Flag("manifest").Value.String()
+		if manifestFile == "" {
+			manifestFile = defaultManifestFile
+		}
 		//deploy
-		deployCortexManifest(repoDir, mapping)
+		deployCortexManifest(repoDir, manifestFile, mapping)
 	},
 }
 
@@ -60,13 +66,12 @@ var buildCmd = &cobra.Command{
 }
 
 var deployCmd = &cobra.Command{
-	Use:                   "deploy  <RepoRootDir>",
+	Use:                   "deploy  <RepoRootDir>  [-m <manifest file>]",
 	Args:                  validateArgs,
 	DisableFlagsInUseLine: true,
-	Short:                 "Deploys Cortex Resources from manifest fabric.yaml",
-	Long:                  `Deploys Cortex Resources from manifest fabric.yaml`,
+	Short:                 "Deploys Cortex Resources from manifest file <fabric.yaml>",
+	Long:                  `Deploys Cortex Resources from manifest file <fabric.yaml>`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Println("Deploying Cortex resources from manifest fabric.yaml")
 		var repoDir = args[0]
 		/*
 			`actionImageMapping` is actionName (and docker image name) to docker image URL in registry mapping. This is required for substituting
@@ -77,7 +82,13 @@ var deployCmd = &cobra.Command{
 
 			Alternatively, we can query docker registry based on image name. But this will add dependency on registry tools/plugins for search. Better use root cmd for action substitution
 		*/
-		deployCortexManifest(repoDir, nil)
+		manifestFile := cmd.Flag("manifest").Value.String()
+		if manifestFile == "" {
+			manifestFile = defaultManifestFile
+		}
+		//deploy
+		log.Println("Deploying Cortex resources from manifest ", manifestFile, " in repo ", repoDir)
+		deployCortexManifest(repoDir, manifestFile, nil)
 	},
 }
 
@@ -136,11 +147,11 @@ func getBuildContext(repoDir string, dockerfile string) string {
 	}
 }
 
-func deployCortexManifest(repoDir string, actionImageMapping map[string]string) {
+func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMapping map[string]string) {
 	var cortex = createCortexClientFromConfig()
 
 	//TODO add validation
-	manifest := deploy.NewManifest(filepath.Join(repoDir, "fabric.yaml"))
+	manifest := deploy.NewManifest(filepath.Join(repoDir, manifestFilePath))
 	for _, action := range manifest.Cortex.Actions {
 		cortex.DeployAction(filepath.Join(repoDir, action))
 	}
@@ -151,7 +162,24 @@ func deployCortexManifest(repoDir string, actionImageMapping map[string]string) 
 		cortex.DeployAgent(filepath.Join(repoDir, agent))
 	}
 	for _, snapshot := range manifest.Cortex.Snapshots {
-		cortex.DeploySnapshot(filepath.Join(repoDir, snapshot), actionImageMapping)
+		relPath := parseManifestResourcePath(snapshot)
+		cortex.DeploySnapshot(filepath.Join(repoDir, relPath), actionImageMapping)
+	}
+}
+
+/**
+https://cognitivescale.atlassian.net/browse/FAB-284
+This is to fix manifest file generated in windows and executed in *nix systems (or vice versa)
+We generate paths in manifest file, so it will never have path characters like \ or / in filenames, so its safe to split and join to reconstruct path for host os
+*/
+func parseManifestResourcePath(relativePath string) string {
+	switch os.PathSeparator {
+	case '\\':
+		return strings.Join(strings.Split(relativePath, "/"), "\\")
+	case '/':
+		return strings.Join(strings.Split(relativePath, "\\"), "/")
+	default:
+		return relativePath
 	}
 }
 
@@ -196,6 +224,8 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(buildCmd, deployCmd, dockerLoginCmd)
+	rootCmd.Flags().StringP("manifest", "m", defaultManifestFile, "Relative path of Manifest file <fabric.yaml>")
+	deployCmd.Flags().StringP("manifest", "m", defaultManifestFile, "Relative path of Manifest file <fabric.yaml>")
 }
 
 func initConfig() {

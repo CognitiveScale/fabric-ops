@@ -29,11 +29,11 @@ function build() {
 
 #Deploy Cortex artifacts
 function deploy() {
-    time ./fabric deploy $1
+    time ./fabric deploy $1 $2 $3
 }
 
 function all() {
-    ./fabric $1
+    ./fabric $1 $2 $3
 }
 
 function dockerLogin() {
@@ -47,8 +47,10 @@ package
 # calling `fabric deploy` without result of build will not perform image substitution and action deployment may fail, unless deploying action in same DCI
 # from where its exported or image exists in the DCI (may be manually copied or docker registry is shared within multiple DCIs)
 
-all "/Users/ljha/xcognitive/cortex-reference-models"
+#all "/Users/ljha/xcognitive/cortex-reference-models"
 
 #build "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"
 
-#deploy "/Users/ljha/xcognitive/cortex-reference-models/src/bank_marketing"
+# -m or --manifest to optionally prove manifest file, if there are multiple manifest or with different name
+#deploy "/Users/ljha/xcognitive/cortex-reference-models" -m "fabric.yaml.0"
+deploy "/Users/ljha/xcognitive/cortex-reference-models"
