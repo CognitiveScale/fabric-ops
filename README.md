@@ -1,8 +1,8 @@
 # GitOps Tool for Fabric
+This tool is to support deploying Cortex assets in automated CI/CD pipeline.
 
+More details can be found in the document
 https://docs.google.com/document/d/13bP7agrn3RpcWMutc5WbpV_Cusalg2ejTpx17ecudFY/edit#heading=h.q117vxrv0r3w
-
-This is for tooling support for deploying Cortex assets in automated CI/CD pipeline.
 
 ### Inputs:
 * Git repo checkout folder with manifest file fabric.yaml and .fabric folder containing Cortex artifacts at root 
@@ -14,27 +14,27 @@ This is for tooling support for deploying Cortex assets in automated CI/CD pipel
     *  `CORTEX_USER`
     *  `CORTEX_PASSWORD`
     *  `DOCKER_PREGISTRY_PREFIX` Docker image namespace. This will be same for all actions in theGit repo.
-    *  `DOCKER_PREGISTRY_URL` Docker registry URL
-    *  `DOCKER_BUILD_CONTEXT` `DOCKERFILE_CURRENT_DIR | DOCKERFILE_PARENT_DIR | REPO_ROOT | </path/relative/to/repo>`
+    *  `DOCKER_PREGISTRY_URL` Docker private registry URL
+    *  `DOCKER_BUILD_CONTEXT`  `DOCKERFILE_CURRENT_DIR | DOCKERFILE_PARENT_DIR | REPO_ROOT | </path/relative/to/repo>`
     
 ### Cortex Assets CI/CD flow
 ##### Authoring (using `cortex-cli`)
 * Deploy all assets and compose Agent(s)
 * Snapshot Agent(s)
 * Export all snapshots(s) with manifest file (`cortex deploy snapshots`)
-* Push exported snapshots `.fabric` directory and `facric.yaml` manifest file to Git repo (root level)
+* Push exported snapshots `.fabric` directory and `fabric.yaml` manifest file to Git repo (root level)
 
-##### Deploying (`facric` this tool)
+##### Deploying (`fabric` this tool)
 Set environment variables and run `fabric <Git repo directory>` to deploy all Cortex assets exported in previous Authoring step. This command will:
 * Scan Git repo directory recursively for Dockerfile(s)
 * Build & tag docker images with configured build context, namespace and git version
 * Push built Docker image to configured docker registry
 
 * Parse manifest `fabric.yaml` to get cortex artifacts to be deployed
-* Deploy agent, skill, action, datasets and agent snapshots. connection and variables will be in next iteration, because we need to handle secretcredentials.
+* Deploy agent, skill, action, datasets and agent snapshots. connection and variables will be in next iteration, because we need to handle secrets
 * Action deployment need to substitute image with newly build (namespace, registry url, version change etc). for substitution action name must be docker image name.
 
-Note: Docker image name and action need to be directory name of dockerfile. This is the only convention need to be followed in Git repo.
+> The action name and the docker image name a to be directory name of dockerfile. This is the only convention need to be followed in Git repo.
 
 ### Implementation
 
