@@ -1,5 +1,0 @@
-version: 1
-kind: deployment-manifest
-cortex:
-  snapshots:
-    - .fabric\snapshots\369d243b-6b53-4220-b23a-5eb780cdb464.yaml
