@@ -1,9 +1,6 @@
 # GitOps Tool for Fabric
 This tool is to support deploying Cortex assets in an automated CI/CD pipeline.
 
-More details can be found in the document
-https://docs.google.com/document/d/13bP7agrn3RpcWMutc5WbpV_Cusalg2ejTpx17ecudFY/edit#heading=h.q117vxrv0r3w
-
 ### Inputs:
 * Git repo checkout folder with manifest file fabric.yaml and .fabric folder containing Cortex artifacts at root 
 * This implementation depends on `git` CLI and `Docker` daemon
