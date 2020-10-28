@@ -6,6 +6,7 @@ import (
 	"fabric-ops/cmd/deploy"
 	"fmt"
 	"github.com/spf13/cobra"
+	"github.com/spf13/cobra/doc"
 	"log"
 	"os"
 	"path/filepath"
@@ -25,6 +26,7 @@ var rootCmd = &cobra.Command{
 		* Build & push Docker images for Cortex Action
 		* Deploy Cortex assets described in manifest file <fabric.yaml>
 	`,
+	DisableAutoGenTag: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Println("Building Cortex Actions in repo checkout ", args[0])
 		var repoDir = args[0]
@@ -214,7 +216,9 @@ func validateArgs(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func Execute() {
+func Execute(version string) {
+	rootCmd.Version = version
+	rootCmd.SetHelpTemplate("\nVersion: " + version + "\n\n" + rootCmd.HelpTemplate())
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatalln(err)
 		os.Exit(1)
@@ -223,12 +227,37 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.AddCommand(buildCmd, deployCmd, dockerLoginCmd)
+	rootCmd.AddCommand(buildCmd, deployCmd, dockerLoginCmd, generateDocsCmd)
 	rootCmd.Flags().StringP("manifest", "m", defaultManifestFile, "Relative path of Manifest file <fabric.yaml>")
 	deployCmd.Flags().StringP("manifest", "m", defaultManifestFile, "Relative path of Manifest file <fabric.yaml>")
+
+	generateDocsCmd.Flags().StringP("format", "f", "md", "Documentation format. Defaults to markdown")
+	generateDocsCmd.Flags().StringP("out", "o", "doc", "Documentation output directory. Defaults to doc")
 }
 
 func initConfig() {
 	// currently only reading config from environment variables are supported, later we need to support other config store like Vault
 	viper.AutomaticEnv()
+}
+
+var generateDocsCmd = &cobra.Command{
+	Use:   "docgen  [-f <md>] [-o <./doc>]",
+	Short: "Generate documentation for this CLI tool",
+	Long:  `Generate documentation for this CLI tool using Cobra doc generator. By default generates in markdown format in doc directory`,
+	Run: func(cmd *cobra.Command, args []string) {
+		format := cmd.Flag("format").Value.String()
+		out := cmd.Flag("out").Value.String()
+
+		err := os.MkdirAll(out, os.FileMode(0755))
+		if err != nil {
+			log.Println(err) // this will be due to directory already exists
+		}
+		if format != "md" {
+			log.Fatalln("Currently only markdown is supported")
+		}
+		err = doc.GenMarkdownTree(rootCmd, out)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	},
 }
