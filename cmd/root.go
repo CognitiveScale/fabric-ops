@@ -31,13 +31,18 @@ var rootCmd = &cobra.Command{
 		log.Println("Building Cortex Actions in repo checkout ", args[0])
 		var repoDir = args[0]
 		var dockerfiles = build.GlobDockerfiles(repoDir)
-		log.Println("Repo ", repoDir, " Dockerfiles ", dockerfiles)
-		var gitTag = build.DockerBuildVersion(repoDir)
-		var namespace = viper.GetString("DOCKER_PREGISTRY_PREFIX")
-		dockerimages := buildActionImages(dockerfiles, repoDir, gitTag, namespace)
-		mapping := map[string]string{}
-		for _, image := range dockerimages {
-			mapping[deploy.DockerImageName(image)] = image
+		mapping := map[string]string{} // get docker images built
+
+		if len(dockerfiles) == 0 {
+			log.Println("No Dockerfiles found in ", repoDir)
+		} else {
+			log.Println("Repo ", repoDir, " Dockerfiles ", dockerfiles)
+			var gitTag = build.DockerBuildVersion(repoDir)
+			var namespace = viper.GetString("DOCKER_PREGISTRY_PREFIX")
+			dockerimages := buildActionImages(dockerfiles, repoDir, gitTag, namespace)
+			for _, image := range dockerimages {
+				mapping[deploy.DockerImageName(image)] = image
+			}
 		}
 
 		manifestFile := cmd.Flag("manifest").Value.String()
@@ -200,12 +205,12 @@ func createCortexClientFromConfig() deploy.CortexAPI {
 		cortex = deploy.NewCortexClientPAT(project, pat)
 	} else if token != "" {
 		if url == "" || token == "" {
-			log.Fatalln(" Cortex URL or Token not provided. Either token or user/password need to be provided.")
+			log.Fatalln(" Cortex URL or Token not provided. Either token or user/password (or Personal Access Token json path) need to be provided.")
 		}
 		cortex = deploy.NewCortexClientExistingToken(url, account, token)
 	} else {
 		if url == "" || user == "" || password == "" {
-			log.Fatalln(" Cortex URL or user/password not provided. Either token or user/password need to be provided.")
+			log.Fatalln(" Cortex URL or user/password not provided. Either token or user/password (or Personal Access Token json path) need to be provided.")
 		}
 		cortex = deploy.NewCortexClient(url, account, user, password)
 	}

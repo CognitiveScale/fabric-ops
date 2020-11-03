@@ -31,7 +31,7 @@ func DockerBuildVersion(repoDir string) string {
 	// git describe is not implemented in go-git library, hence using format <branch name>-<short commit hash>
 	repo, err := git.PlainOpen(repoDir)
 	if err != nil {
-		log.Fatalln("Failed to get commit hash. ", repoDir, " must point to root of Git repo checkout. Error: ", err)
+		log.Fatalln("Failed to get commit hash. ", repoDir, " must be root of Git repo checkout. Error: ", err)
 	}
 	ref, err := repo.Head()
 	if err != nil {
