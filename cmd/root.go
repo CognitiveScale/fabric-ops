@@ -121,7 +121,7 @@ func buildActionImages(dockerfiles []string, repoDir string, gitTag string, name
 	if registry == "" {
 		registry = cortex.GetDockerRegistry()
 	} else {
-		registry = fmt.Sprint(strings.Trim(registry, "/"), "/", cortex.Account)
+		registry = fmt.Sprint(strings.Trim(registry, "/"), "/", cortex.GetAccount())
 	}
 
 	log.Println("Building with tag: ", gitTag, " and namespace: ", namespace, ". Pushing to registry: ", registry)
@@ -165,7 +165,7 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 	}
 	for _, snapshot := range manifest.Cortex.Snapshots {
 		relPath := parseManifestResourcePath(snapshot)
-		cortex.DeploySnapshot(filepath.Join(repoDir, relPath), actionImageMapping)
+		deploy.DeploySnapshot(cortex, filepath.Join(repoDir, relPath), actionImageMapping)
 	}
 }
 
@@ -185,15 +185,20 @@ func parseManifestResourcePath(relativePath string) string {
 	}
 }
 
-func createCortexClientFromConfig() deploy.CortexClient {
+func createCortexClientFromConfig() deploy.CortexAPI {
 	var url = strings.TrimSpace(strings.Trim(viper.GetString("CORTEX_URL"), "/"))
 	var account = strings.TrimSpace(viper.GetString("CORTEX_ACCOUNT"))
 	var user = strings.TrimSpace(viper.GetString("CORTEX_USER"))
 	var password = strings.TrimSpace(viper.GetString("CORTEX_PASSWORD"))
 	var token = strings.TrimSpace(viper.GetString("CORTEX_TOKEN"))
+	// V6
+	var pat = strings.TrimSpace(viper.GetString("CORTEX_PAT_PATH"))
+	var project = strings.TrimSpace(viper.GetString("CORTEX_PROJECT"))
 
-	var cortex deploy.CortexClient
-	if len(strings.TrimSpace(token)) > 0 {
+	var cortex deploy.CortexAPI
+	if pat != "" {
+		cortex = deploy.NewCortexClientPAT(project, pat)
+	} else if token != "" {
 		if url == "" || token == "" {
 			log.Fatalln(" Cortex URL or Token not provided. Either token or user/password need to be provided.")
 		}
