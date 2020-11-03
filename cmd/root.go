@@ -64,6 +64,10 @@ var buildCmd = &cobra.Command{
 		log.Println("Building Cortex Actions in repo checkout ", args[0])
 		var repoDir = args[0]
 		var dockerfiles = build.GlobDockerfiles(repoDir)
+		if len(dockerfiles) == 0 {
+			log.Println("No Dockerfile found in ", repoDir)
+			return
+		}
 
 		var gitTag = build.DockerBuildVersion(repoDir)
 		var namespace = viper.GetString("DOCKER_PREGISTRY_PREFIX")
@@ -129,7 +133,7 @@ func buildActionImages(dockerfiles []string, repoDir string, gitTag string, name
 		registry = fmt.Sprint(strings.Trim(registry, "/"), "/", cortex.GetAccount())
 	}
 
-	log.Println("Building with tag: ", gitTag, " and namespace: ", namespace, ". Pushing to registry: ", registry)
+	log.Println("Building Docker images with tag: ", gitTag, " and namespace: ", namespace, ". Pushing to registry: ", registry)
 
 	dockerimages := []string{}
 	for _, dockerfile := range dockerfiles {

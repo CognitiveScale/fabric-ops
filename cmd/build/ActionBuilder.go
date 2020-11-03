@@ -44,7 +44,6 @@ func DockerBuildVersion(repoDir string) string {
 		os.Exit(1)
 	}
 	tag := strings.Join([]string{hash, branch}, "-")
-	log.Println("DockerBuildVersion", tag)
 	return tag
 }
 
