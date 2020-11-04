@@ -31,13 +31,18 @@ var rootCmd = &cobra.Command{
 		log.Println("Building Cortex Actions in repo checkout ", args[0])
 		var repoDir = args[0]
 		var dockerfiles = build.GlobDockerfiles(repoDir)
-		log.Println("Repo ", repoDir, " Dockerfiles ", dockerfiles)
-		var gitTag = build.DockerBuildVersion(repoDir)
-		var namespace = viper.GetString("DOCKER_PREGISTRY_PREFIX")
-		dockerimages := buildActionImages(dockerfiles, repoDir, gitTag, namespace)
-		mapping := map[string]string{}
-		for _, image := range dockerimages {
-			mapping[deploy.DockerImageName(image)] = image
+		mapping := map[string]string{} // get docker images built
+
+		if len(dockerfiles) == 0 {
+			log.Println("No Dockerfiles found in ", repoDir)
+		} else {
+			log.Println("Repo ", repoDir, " Dockerfiles ", dockerfiles)
+			var gitTag = build.DockerBuildVersion(repoDir)
+			var namespace = viper.GetString("DOCKER_PREGISTRY_PREFIX")
+			dockerimages := buildActionImages(dockerfiles, repoDir, gitTag, namespace)
+			for _, image := range dockerimages {
+				mapping[deploy.DockerImageName(image)] = image
+			}
 		}
 
 		manifestFile := cmd.Flag("manifest").Value.String()
@@ -59,6 +64,10 @@ var buildCmd = &cobra.Command{
 		log.Println("Building Cortex Actions in repo checkout ", args[0])
 		var repoDir = args[0]
 		var dockerfiles = build.GlobDockerfiles(repoDir)
+		if len(dockerfiles) == 0 {
+			log.Println("No Dockerfile found in ", repoDir)
+			return
+		}
 
 		var gitTag = build.DockerBuildVersion(repoDir)
 		var namespace = viper.GetString("DOCKER_PREGISTRY_PREFIX")
@@ -121,10 +130,10 @@ func buildActionImages(dockerfiles []string, repoDir string, gitTag string, name
 	if registry == "" {
 		registry = cortex.GetDockerRegistry()
 	} else {
-		registry = fmt.Sprint(strings.Trim(registry, "/"), "/", cortex.Account)
+		registry = fmt.Sprint(strings.Trim(registry, "/"), "/", cortex.GetAccount())
 	}
 
-	log.Println("Building with tag: ", gitTag, " and namespace: ", namespace, ". Pushing to registry: ", registry)
+	log.Println("Building Docker images with tag: ", gitTag, " and namespace: ", namespace, ". Pushing to registry: ", registry)
 
 	dockerimages := []string{}
 	for _, dockerfile := range dockerfiles {
@@ -165,7 +174,7 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 	}
 	for _, snapshot := range manifest.Cortex.Snapshots {
 		relPath := parseManifestResourcePath(snapshot)
-		cortex.DeploySnapshot(filepath.Join(repoDir, relPath), actionImageMapping)
+		deploy.DeploySnapshot(cortex, filepath.Join(repoDir, relPath), actionImageMapping)
 	}
 }
 
@@ -185,22 +194,27 @@ func parseManifestResourcePath(relativePath string) string {
 	}
 }
 
-func createCortexClientFromConfig() deploy.CortexClient {
+func createCortexClientFromConfig() deploy.CortexAPI {
 	var url = strings.TrimSpace(strings.Trim(viper.GetString("CORTEX_URL"), "/"))
 	var account = strings.TrimSpace(viper.GetString("CORTEX_ACCOUNT"))
 	var user = strings.TrimSpace(viper.GetString("CORTEX_USER"))
 	var password = strings.TrimSpace(viper.GetString("CORTEX_PASSWORD"))
 	var token = strings.TrimSpace(viper.GetString("CORTEX_TOKEN"))
+	// V6
+	var pat = strings.TrimSpace(viper.GetString("CORTEX_ACCESS_TOKEN_PATH"))
+	var project = strings.TrimSpace(viper.GetString("CORTEX_PROJECT"))
 
-	var cortex deploy.CortexClient
-	if len(strings.TrimSpace(token)) > 0 {
+	var cortex deploy.CortexAPI
+	if pat != "" {
+		cortex = deploy.NewCortexClientPAT(project, pat)
+	} else if token != "" {
 		if url == "" || token == "" {
-			log.Fatalln(" Cortex URL or Token not provided. Either token or user/password need to be provided.")
+			log.Fatalln(" Cortex URL or Token not provided. Either token or user/password (or Personal Access Token json path) need to be provided.")
 		}
 		cortex = deploy.NewCortexClientExistingToken(url, account, token)
 	} else {
 		if url == "" || user == "" || password == "" {
-			log.Fatalln(" Cortex URL or user/password not provided. Either token or user/password need to be provided.")
+			log.Fatalln(" Cortex URL or user/password not provided. Either token or user/password (or Personal Access Token json path) need to be provided.")
 		}
 		cortex = deploy.NewCortexClient(url, account, user, password)
 	}
