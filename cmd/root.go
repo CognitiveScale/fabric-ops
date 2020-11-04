@@ -201,7 +201,7 @@ func createCortexClientFromConfig() deploy.CortexAPI {
 	var password = strings.TrimSpace(viper.GetString("CORTEX_PASSWORD"))
 	var token = strings.TrimSpace(viper.GetString("CORTEX_TOKEN"))
 	// V6
-	var pat = strings.TrimSpace(viper.GetString("CORTEX_PAT_PATH"))
+	var pat = strings.TrimSpace(viper.GetString("CORTEX_ACCESS_TOKEN_PATH"))
 	var project = strings.TrimSpace(viper.GetString("CORTEX_PROJECT"))
 
 	var cortex deploy.CortexAPI

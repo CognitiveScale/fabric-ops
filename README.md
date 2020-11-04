@@ -10,20 +10,29 @@ Download OS specific binary from [Release](https://github.com/CognitiveScale/fab
 * Snapshot Agent(s)
 * Export all snapshots(s) with manifest file (`cortex deploy snapshots`)
 * Push exported snapshots `.fabric` directory and `fabric.yaml` manifest file to Git repo (top level directory)
+> See `cortex-cli` usage in [CLI usage example](cortex-cli-ci.sh)
 
 ##### Deployment (`fabric` this tool)
 ###### Inputs
 * Git repo checkout folder with manifest file fabric.yaml and .fabric folder containing Cortex artifacts at top level directory (as setup in previous section) 
 * This implementation depends and `Docker` daemon running on host machine
 * Environment variables 
-    *  `CORTEX_URL` Cortex DCI API base URL
-    *  `CORTEX_ACCOUNT`
-    *  `CORTEX_TOKEN` Either token or user+password is required
-    *  `CORTEX_USER`
-    *  `CORTEX_PASSWORD`
+    For Docker image builds (for Cortex Action)
     *  `DOCKER_PREGISTRY_PREFIX` Docker image namespace. This will be same for all actions in theGit repo.
     *  `DOCKER_PREGISTRY_URL` Docker private registry URL
     *  `DOCKER_BUILD_CONTEXT`  Allowed values `DOCKERFILE_CURRENT_DIR | DOCKERFILE_PARENT_DIR | REPO_ROOT | </path/relative/to/repo>`. This config directs which directory to copy (build context) in Docker image building
+    
+    For Cortex DCI v5
+    *  `CORTEX_URL` Cortex DCI API base URL
+    *  `CORTEX_ACCOUNT`
+    *  `CORTEX_TOKEN` 
+    *  `CORTEX_USER`
+    *  `CORTEX_PASSWORD` 
+    > Either token or user+password is required
+    
+    For Cortex DCI v6
+    * `CORTEX_ACCESS_TOKEN_PATH` Path of `cortex-token.json` downloaded from Cortex console `Settings`
+    * `CORTEX_PROJECT`
 
 Set environment variables and run `fabric <Git repo directory>` to deploy all Cortex assets exported in previous Authoring step. This command will:
 * Scan Git repo directory recursively for Dockerfile(s)

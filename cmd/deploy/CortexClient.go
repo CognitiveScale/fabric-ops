@@ -45,7 +45,6 @@ type CortexAPI interface {
 	DeployAgent(filepath string) string
 	DeployAgentJson(content []byte) string
 	DeployDatasetJson(content []byte) string
-	//DeploySnapshot(filepath string, actionImageMapping map[string]string) string
 }
 
 func NewCortexClient(url string, account string, user string, password string) CortexAPI {
@@ -91,6 +90,7 @@ func NewCortexClientPAT(project string, pat string) CortexAPI {
 	return client
 }
 
+//Generate JWT token from JWK for Cortex v6
 func generateJwt(data map[string]interface{}) string {
 	var set jose.JSONWebKey
 	bytes, err := json.Marshal(data["jwk"])
@@ -215,6 +215,7 @@ func (c *CortexClientV6) GetAccount() string {
 	return c.Project
 }
 
+// TODO update V6 Docker registry logic as per updated Action deployment (when ready)
 func (c *CortexClientV6) GetDockerRegistry() string {
 	var result, error = get(c, "/v3/actions/_config")
 	if error != nil {
