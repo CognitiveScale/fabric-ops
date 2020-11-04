@@ -75,5 +75,4 @@ If user is managing Docker images in the registries manually, then use this comm
 
 ##### Next Steps
 * Support creating Cortex Connections. Need to handle secret credentials
-* Fetch Cortex credentials from Vault, instead of environment variables
-* Cortex v6 support 
+* Fetch Cortex credentials from Vault, instead of environment variables 
