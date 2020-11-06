@@ -1,16 +1,25 @@
 # GitOps Tool for Fabric
-CLI tool for deploying Cortex assets in an automated CI/CD pipeline. Cortex assets need to be snapshot & export using [cortex-cli](https://www.npmjs.com/package/cortex-cli). This will generate Cortex assets export and manifest file to drive deployment. 
+CLI tool for deploying Cortex assets in an automated CI/CD pipeline. Cortex assets need to be snapshot & export using [cortex-cli](https://www.npmjs.com/package/cortex-cli). This will generate Cortex assets export and manifest file to drive deployment.
 
-### Installation
-Download OS specific binary from [Release](https://github.com/CognitiveScale/fabric-ops/releases/) and to system path or bin directory for system wide global access (or execute binary with full path) 
+#### Prerequisites
+* [cortex](https://www.npmjs.com/package/cortex-cli) (follow instruction on link to install CLI)
+* This tool [fabric](https://github.com/CognitiveScale/fabric-ops/releases/). Download OS specific binary and add to system path or bin directory for system wide global access (or execute binary with full path)
+* See usage examples of both the tools above in [script](scripts/cortex-cli-ci.sh)
+
+#### Cortex Application Lifecycle
+1. **Authoring**: Create Skills, Connections, Datasets and compose Agent(s) using Cortex Studio and [CLI](https://www.npmjs.com/package/cortex-cli) 
+2. **Export**:
+    * Snapshot & export agent(s): see `export_agents` in usage example script
+    * Execute `export_agents` in Git repo (of Cortex Skills/Actions) checkout and push exported assets (`.fabric` directory with snapshots and `fabric.yaml` manifest file to drive deployment)
+3. **Deploy** (GitOps)
+    * Execute `fabric <Git Repo checkout directory>` 
+> 1 & 2 are using `cortex-cli` and 3 is using `fabric` 
+
+![Lifecycle Diagram](assets/CortexDevToGitOps.png)
     
 ### Cortex Assets CI/CD flow
 ##### Authoring (using `cortex-cli`)
-* Deploy all assets and compose Agent(s)
-* Snapshot Agent(s)
-* Export all snapshots(s) with manifest file (`cortex deploy snapshots`)
-* Push exported snapshots `.fabric` directory and `fabric.yaml` manifest file to Git repo (top level directory)
-> See `cortex-cli` usage in [CLI usage example](cortex-cli-ci.sh)
+See usage example script for `setup`, `setup_project` and `export_agents`
 
 ##### Deployment (`fabric` this tool)
 ###### Inputs
@@ -45,7 +54,7 @@ Set environment variables and run `fabric <Git repo directory>` to deploy all Co
 
 > The action name and the Docker image name a to be directory name of Dockerfile. This is the only convention need to be followed in Git repo.
 
-##### CLI Usage:
+##### `fabric` Usage:
 
 See usage in [generated doc](doc/fabric_usage.md)
 
