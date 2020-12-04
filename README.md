@@ -4,7 +4,7 @@ CLI tool for deploying Cortex assets in an automated CI/CD pipeline. Cortex asse
 #### Prerequisites
 * [cortex](https://www.npmjs.com/package/cortex-cli) (follow instruction on link to install CLI)
 * This tool [fabric](https://github.com/CognitiveScale/fabric-ops/releases/). Download OS specific binary and add to system path or bin directory for system wide global access (or execute binary with full path)
-* See usage examples of both the tools above in [script](scripts/cortex-cli-ci.sh)
+* See usage examples of both the tools above in [script](scripts)
 
 #### Cortex Application Lifecycle
 1. **Authoring**: Create Skills, Connections, Datasets and compose Agent(s) using Cortex Studio and [CLI](https://www.npmjs.com/package/cortex-cli) 

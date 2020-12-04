@@ -25,15 +25,6 @@ setup() {
 	cortex configure --file ${CORTEX_ACCESS_TOKEN_PATH} --profile ${PROFILE} --project ${CORTEX_PROJECT}
 }
 
-# This creates the project and grants provided users READ access on all resources in the project
-setup_project() {
-	cortex projects save --name ${CORTEX_PROJECT}
-	for user in "$@"
-	do
-		cortex users grant ${user} --project ${CORTEX_PROJECT} --resource ‘*’ --actions READ
-	done
-}
-
 # Export Cortex Agent flow:
 #   Authoring (cortex-cli) steps
 #	    Create Snapshot of Agent(s)
@@ -75,7 +66,7 @@ export_agents() {
 
 setup # auth setup, needed only once on host
 
-setup_project <user1> <user2> # create project and add users (if not already done)
+# create project and add users (if not already done). see `setup-project.sh`
 
 export_agents <agent1> <agent2> # snapshot & export agents
 
