@@ -332,12 +332,6 @@ func DeploySnapshot(cortex CortexAPI, filepath string, actionImageMapping map[st
 		return true
 	})
 
-	skills.ForEach(func(key, value gjson.Result) bool {
-		logs := cortex.DeploySkillJson([]byte(value.Raw))
-		log.Println(logs)
-		return true
-	})
-
 	actions.ForEach(func(key, value gjson.Result) bool {
 		if actionImageMapping != nil {
 			action := value.Map()
@@ -360,6 +354,12 @@ func DeploySnapshot(cortex CortexAPI, filepath string, actionImageMapping map[st
 			}
 		}
 		logs := cortex.DeployActionJson(value.Get("type").String(), []byte(value.Raw))
+		log.Println(logs)
+		return true
+	})
+
+	skills.ForEach(func(key, value gjson.Result) bool {
+		logs := cortex.DeploySkillJson([]byte(value.Raw))
 		log.Println(logs)
 		return true
 	})
