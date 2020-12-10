@@ -45,6 +45,7 @@ type CortexAPI interface {
 	DeployAgent(filepath string) string
 	DeployAgentJson(content []byte) string
 	DeployDatasetJson(content []byte) string
+	DeployTypesJson(content []byte) string
 }
 
 func NewCortexClient(url string, account string, user string, password string) CortexAPI {
@@ -202,6 +203,14 @@ func (c *CortexClientV5) DeployDatasetJson(content []byte) string {
 	return string(result)
 }
 
+func (c *CortexClientV5) DeployTypesJson(content []byte) string {
+	var result, error = post(c, "/v3/catalog/types", content)
+	if error != nil {
+		log.Fatalln(error)
+	}
+	return string(result)
+}
+
 //V6
 func (c *CortexClientV6) GetURL() string {
 	return c.Url
@@ -284,6 +293,14 @@ func (c *CortexClientV6) DeployDatasetJson(content []byte) string {
 	return string(result)
 }
 
+func (c *CortexClientV6) DeployTypesJson(content []byte) string {
+	var result, error = post(c, "/fabric/v4/projects/"+c.Project+"/types", content)
+	if error != nil {
+		log.Fatalln(error)
+	}
+	return string(result)
+}
+
 // Common in v5 and v6
 func DeploySnapshot(cortex CortexAPI, filepath string, actionImageMapping map[string]string) {
 	content, err := ioutil.ReadFile(filepath)
@@ -301,6 +318,13 @@ func DeploySnapshot(cortex CortexAPI, filepath string, actionImageMapping map[st
 	skills := snapshot.Get("dependencies.skills")
 	actions := snapshot.Get("dependencies.actions")
 	datasets := snapshot.Get("dependencies.datasets")
+	types := snapshot.Get("dependencies.types")
+
+	types.ForEach(func(key, value gjson.Result) bool {
+		logs := cortex.DeployTypesJson([]byte(value.Raw))
+		log.Println(logs)
+		return true
+	})
 
 	datasets.ForEach(func(key, value gjson.Result) bool {
 		logs := cortex.DeployDatasetJson([]byte(value.Raw))

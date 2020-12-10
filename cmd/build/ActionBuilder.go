@@ -94,8 +94,9 @@ func NativeExitOnError(cmd string) string {
 	}
 	out, err := shell.Output()
 	if err != nil {
+		log.Println(cmd)
+		log.Println(out)
 		log.Fatalln(err)
-		log.Fatalln(out)
 		if exitError, ok := err.(*exec.ExitError); ok {
 			exitCode := exitError.ExitCode()
 			if exitCode > 0 {
