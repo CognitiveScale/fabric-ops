@@ -11,8 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/spf13/viper"
 )
 
 const defaultManifestFile = "fabric.yaml"
@@ -38,7 +36,7 @@ var rootCmd = &cobra.Command{
 		} else {
 			log.Println("Repo ", repoDir, " Dockerfiles ", dockerfiles)
 			var gitTag = build.DockerBuildVersion(repoDir)
-			var namespace = viper.GetString("DOCKER_PREGISTRY_PREFIX")
+			var namespace = getEnvVar("DOCKER_PREGISTRY_PREFIX")
 			dockerimages := buildActionImages(dockerfiles, repoDir, gitTag, namespace)
 			for _, image := range dockerimages {
 				mapping[deploy.DockerImageName(image)] = image
@@ -70,7 +68,7 @@ var buildCmd = &cobra.Command{
 		}
 
 		var gitTag = build.DockerBuildVersion(repoDir)
-		var namespace = viper.GetString("DOCKER_PREGISTRY_PREFIX")
+		var namespace = getEnvVar("DOCKER_PREGISTRY_PREFIX")
 
 		buildActionImages(dockerfiles, repoDir, gitTag, namespace)
 	},
@@ -126,7 +124,7 @@ var dockerLoginCmd = &cobra.Command{
 
 func buildActionImages(dockerfiles []string, repoDir string, gitTag string, namespace string) []string {
 	cortex := createCortexClientFromConfig()
-	registry := viper.GetString("DOCKER_PREGISTRY_URL")
+	registry := getEnvVar("DOCKER_PREGISTRY_URL")
 	if registry == "" {
 		registry = cortex.GetDockerRegistry()
 	} else {
@@ -145,7 +143,7 @@ func buildActionImages(dockerfiles []string, repoDir string, gitTag string, name
 }
 
 func getBuildContext(repoDir string, dockerfile string) string {
-	buildContext := viper.GetString("DOCKER_BUILD_CONTEXT")
+	buildContext := getEnvVar("DOCKER_BUILD_CONTEXT")
 	switch buildContext {
 	case "", "DOCKERFILE_CURRENT_DIR":
 		return filepath.Dir(dockerfile)
@@ -195,14 +193,14 @@ func parseManifestResourcePath(relativePath string) string {
 }
 
 func createCortexClientFromConfig() deploy.CortexAPI {
-	var url = strings.TrimSpace(strings.Trim(viper.GetString("CORTEX_URL"), "/"))
-	var account = strings.TrimSpace(viper.GetString("CORTEX_ACCOUNT"))
-	var user = strings.TrimSpace(viper.GetString("CORTEX_USER"))
-	var password = strings.TrimSpace(viper.GetString("CORTEX_PASSWORD"))
-	var token = strings.TrimSpace(viper.GetString("CORTEX_TOKEN"))
+	var url = strings.TrimSpace(strings.Trim(getEnvVar("CORTEX_URL"), "/"))
+	var account = strings.TrimSpace(getEnvVar("CORTEX_ACCOUNT"))
+	var user = strings.TrimSpace(getEnvVar("CORTEX_USER"))
+	var password = strings.TrimSpace(getEnvVar("CORTEX_PASSWORD"))
+	var token = strings.TrimSpace(getEnvVar("CORTEX_TOKEN"))
 	// V6
-	var pat = strings.TrimSpace(viper.GetString("CORTEX_ACCESS_TOKEN_PATH"))
-	var project = strings.TrimSpace(viper.GetString("CORTEX_PROJECT"))
+	var pat = strings.TrimSpace(getEnvVar("CORTEX_ACCESS_TOKEN_PATH"))
+	var project = strings.TrimSpace(getEnvVar("CORTEX_PROJECT"))
 
 	var cortex deploy.CortexAPI
 	if pat != "" {
@@ -250,8 +248,8 @@ func init() {
 }
 
 func initConfig() {
-	// currently only reading config from environment variables are supported, later we need to support other config store like Vault
-	viper.AutomaticEnv()
+	// DO NOTHING
+	//viper.AutomaticEnv()
 }
 
 var generateDocsCmd = &cobra.Command{
@@ -274,4 +272,9 @@ var generateDocsCmd = &cobra.Command{
 			log.Fatalln(err)
 		}
 	},
+}
+
+//replaced viper.GetString to remove vulnerable dependencies FAB-789 and FAB-792
+func getEnvVar(varname string) string {
+	return os.Getenv(varname)
 }
