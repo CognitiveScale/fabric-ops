@@ -21,19 +21,29 @@ setup() {
 create_cortex_project() {
     cortex projects save --name $1 --description $2 --title $3
 
-    cortex roles project $1 --roles data-engineer ai-developer business-user
+    cortex roles project $1 --roles data-engineer developer business-user
 
-    cortex roles grant ai-developer --project $1 --actions '*' --resource agents
-    cortex roles grant ai-developer --project $1 --actions '*' --resource campaigns
-    cortex roles grant ai-developer --project $1 --actions READ --resource connections
-    cortex roles grant ai-developer --project $1 --actions READ --resource secrets
+    cortex roles grant developer --project $1 --actions '*' --resource agents
+    cortex roles grant developer --project $1 --actions '*' --resource campaigns
+    cortex roles grant developer --project $1 --actions '*' --resource agents:*
+    cortex roles grant developer --project $1 --actions '*' --resource campaigns:*
+    cortex roles grant developer --project $1 --actions READ --resource connections
+    cortex roles grant developer --project $1 --actions READ --resource secrets
+    cortex roles grant developer --project $1 --actions READ --resource connections:*
+    cortex roles grant developer --project $1 --actions READ --resource secrets:*
 
     cortex roles grant data-engineer --project $1 --actions '*' --resource datasources
     cortex roles grant data-engineer --project $1 --actions '*' --resource profiles
     cortex roles grant data-engineer --project $1 --actions '*' --resource connections
     cortex roles grant data-engineer --project $1 --actions '*' --resource secrets
+    
+    cortex roles grant data-engineer --project $1 --actions '*' --resource datasources:*
+    cortex roles grant data-engineer --project $1 --actions '*' --resource profiles:*
+    cortex roles grant data-engineer --project $1 --actions '*' --resource connections:*
+    cortex roles grant data-engineer --project $1 --actions '*' --resource secrets:*
 
     cortex roles grant business-user --project $1 --actions '*' --resource campaigns
+    cortex roles grant business-user --project $1 --actions '*' --resource campaigns:*
 }
 
 # keep adding users
