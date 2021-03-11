@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,7 +46,10 @@ type CortexAPI interface {
 	DeployAgent(filepath string) string
 	DeployAgentJson(content []byte) string
 	DeployDatasetJson(content []byte) string
+	DeployTypes(filepath string) string
 	DeployTypesJson(content []byte) string
+	DeployConnection(filepath string) string
+	DeployConnectionJson(content []byte) string
 }
 
 func NewCortexClient(url string, account string, user string, password string) CortexAPI {
@@ -77,8 +81,12 @@ func NewCortexClientPAT(project string, pat string) CortexAPI {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	return NewCortexClientPATContent(project, bytes)
+}
+
+func NewCortexClientPATContent(project string, patToken []byte) CortexAPI {
 	data := map[string]interface{}{}
-	err = json.Unmarshal(bytes, &data)
+	err := json.Unmarshal(patToken, &data)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -145,7 +153,7 @@ func (c *CortexClientV5) GetDockerRegistry() string {
 }
 
 func (c *CortexClientV5) DeployAction(filepath string) string {
-	content, err := ioutil.ReadFile(filepath)
+	content, err := GetJsonContent(filepath)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -163,7 +171,7 @@ func (c *CortexClientV5) DeployActionJson(actionType string, content []byte) str
 
 //https://github.com/CognitiveScale/cortex-cli/blob/6c91a3e94442f690c0de054545b9b214a17b6929/src/client/catalog.js#L42
 func (c *CortexClientV5) DeploySkill(filepath string) string {
-	content, err := ioutil.ReadFile(filepath)
+	content, err := GetJsonContent(filepath)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -180,7 +188,7 @@ func (c *CortexClientV5) DeploySkillJson(content []byte) string {
 
 //https://github.com/CognitiveScale/cortex-cli/blob/6c91a3e94442f690c0de054545b9b214a17b6929/src/client/catalog.js#L139
 func (c *CortexClientV5) DeployAgent(filepath string) string {
-	content, err := ioutil.ReadFile(filepath)
+	content, err := GetJsonContent(filepath)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -203,8 +211,32 @@ func (c *CortexClientV5) DeployDatasetJson(content []byte) string {
 	return string(result)
 }
 
+func (c *CortexClientV5) DeployTypes(filepath string) string {
+	content, err := GetJsonContent(filepath)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	return c.DeployTypesJson(content)
+}
+
 func (c *CortexClientV5) DeployTypesJson(content []byte) string {
 	var result, error = post(c, "/v3/catalog/types", content)
+	if error != nil {
+		log.Fatalln(error)
+	}
+	return string(result)
+}
+
+func (c *CortexClientV5) DeployConnection(filepath string) string {
+	content, err := GetJsonContent(filepath)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	return c.DeployConnectionJson(content)
+}
+
+func (c *CortexClientV5) DeployConnectionJson(content []byte) string {
+	var result, error = post(c, "/v2/connections", content)
 	if error != nil {
 		log.Fatalln(error)
 	}
@@ -235,7 +267,7 @@ func (c *CortexClientV6) GetDockerRegistry() string {
 }
 
 func (c *CortexClientV6) DeployAction(filepath string) string {
-	content, err := ioutil.ReadFile(filepath)
+	content, err := GetJsonContent(filepath)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -253,7 +285,7 @@ func (c *CortexClientV6) DeployActionJson(actionType string, content []byte) str
 
 //https://github.com/CognitiveScale/cortex-cli/blob/6c91a3e94442f690c0de054545b9b214a17b6929/src/client/catalog.js#L42
 func (c *CortexClientV6) DeploySkill(filepath string) string {
-	content, err := ioutil.ReadFile(filepath)
+	content, err := GetJsonContent(filepath)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -270,7 +302,7 @@ func (c *CortexClientV6) DeploySkillJson(content []byte) string {
 
 //https://github.com/CognitiveScale/cortex-cli/blob/6c91a3e94442f690c0de054545b9b214a17b6929/src/client/catalog.js#L139
 func (c *CortexClientV6) DeployAgent(filepath string) string {
-	content, err := ioutil.ReadFile(filepath)
+	content, err := GetJsonContent(filepath)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -293,6 +325,14 @@ func (c *CortexClientV6) DeployDatasetJson(content []byte) string {
 	return string(result)
 }
 
+func (c *CortexClientV6) DeployTypes(filepath string) string {
+	content, err := GetJsonContent(filepath)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	return c.DeployTypesJson(content)
+}
+
 func (c *CortexClientV6) DeployTypesJson(content []byte) string {
 	var result, error = post(c, "/fabric/v4/projects/"+c.Project+"/types", content)
 	if error != nil {
@@ -301,17 +341,38 @@ func (c *CortexClientV6) DeployTypesJson(content []byte) string {
 	return string(result)
 }
 
-// Common in v5 and v6
-func DeploySnapshot(cortex CortexAPI, filepath string, actionImageMapping map[string]string) {
+func (c *CortexClientV6) DeployConnection(filepath string) string {
+	content, err := GetJsonContent(filepath)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	return c.DeployConnectionJson(content)
+}
+
+func (c *CortexClientV6) DeployConnectionJson(content []byte) string {
+	var result, error = post(c, "/fabric/v4/projects/"+c.Project+"/connections", content)
+	if error != nil {
+		log.Fatalln(error)
+	}
+	return string(result)
+}
+
+func GetJsonContent(filepath string) ([]byte, error) {
 	content, err := ioutil.ReadFile(filepath)
 	if err != nil {
-		log.Fatalln("Failed to read Cortex Agent Snapshot file ", filepath, " Error: ", err)
+		return content, err
 	}
 	if strings.HasSuffix(filepath, ".yaml") {
 		content, err = yaml.YAMLToJSON(content)
-		if err != nil {
-			log.Fatalln("Failed to parse Cortex Agent Snapshot file ", filepath, " Error: ", err)
-		}
+	}
+	return content, err
+}
+
+// Common in v5 and v6
+func DeploySnapshot(cortex CortexAPI, filepath string, actionImageMapping map[string]string) {
+	content, err := GetJsonContent(filepath)
+	if err != nil {
+		log.Fatalln("Failed to read Cortex Agent Snapshot file ", filepath, " Error: ", err)
 	}
 	snapshot := gjson.Parse(string(content))
 	agent := snapshot.Get("agent")
@@ -376,6 +437,11 @@ func post(cortex CortexAPI, path string, body []byte) ([]byte, error) {
 	return do(cortex, path, HTTP_POST, body)
 }
 
+var IGNORE_INVALID_SSL_CERT = &http.Transport{
+	TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // ignore expired SSL certificates
+}
+var client = &http.Client{Transport: IGNORE_INVALID_SSL_CERT}
+
 func do(cortex CortexAPI, path string, method string, body []byte) ([]byte, error) {
 	url, err := url.Parse(cortex.GetURL() + path)
 	if err != nil {
@@ -392,7 +458,7 @@ func do(cortex CortexAPI, path string, method string, body []byte) ([]byte, erro
 	if body != nil {
 		request.Body = ioutil.NopCloser(bytes.NewReader(body))
 	}
-	response, error := http.DefaultClient.Do(request)
+	response, error := client.Do(request)
 	if error != nil {
 		//errors like connection refused, address not found etc
 		return nil, error

@@ -4,16 +4,25 @@ import (
 	"errors"
 	"fabric-ops/cmd/build"
 	"fabric-ops/cmd/deploy"
-	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
+	"github.com/tidwall/gjson"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
-const defaultManifestFile = "fabric.yaml"
+const (
+	defaultManifestFile = "fabric.yaml"
+)
+
+var (
+	dockerfileRegex, _   = regexp.Compile("Dockerfile")
+	jsonYamlFileRegex, _ = regexp.Compile(".*\\.(json|yaml)")
+)
 
 var rootCmd = &cobra.Command{
 	Use:                   "fabric <RepoRootDir> [-m <manifest file>]",
@@ -28,7 +37,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Println("Building Cortex Actions in repo checkout ", args[0])
 		var repoDir = args[0]
-		var dockerfiles = build.GlobDockerfiles(repoDir)
+		var dockerfiles = build.GlobFiles(repoDir, *dockerfileRegex)
 		mapping := map[string]string{} // get docker images built
 
 		if len(dockerfiles) == 0 {
@@ -61,7 +70,7 @@ var buildCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Println("Building Cortex Actions in repo checkout ", args[0])
 		var repoDir = args[0]
-		var dockerfiles = build.GlobDockerfiles(repoDir)
+		var dockerfiles = build.GlobFiles(repoDir, *dockerfileRegex)
 		if len(dockerfiles) == 0 {
 			log.Println("No Dockerfile found in ", repoDir)
 			return
@@ -125,10 +134,13 @@ var dockerLoginCmd = &cobra.Command{
 func buildActionImages(dockerfiles []string, repoDir string, gitTag string, namespace string) []string {
 	cortex := createCortexClientFromConfig()
 	registry := getEnvVar("DOCKER_PREGISTRY_URL")
+	if namespace == "" {
+		namespace = cortex.GetAccount()
+	}
 	if registry == "" {
 		registry = cortex.GetDockerRegistry()
 	} else {
-		registry = fmt.Sprint(strings.Trim(registry, "/"), "/", cortex.GetAccount())
+		registry = strings.Trim(registry, "/")
 	}
 
 	log.Println("Building Docker images with tag: ", gitTag, " and namespace: ", namespace, ". Pushing to registry: ", registry)
@@ -159,7 +171,6 @@ func getBuildContext(repoDir string, dockerfile string) string {
 func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMapping map[string]string) {
 	var cortex = createCortexClientFromConfig()
 
-	//TODO add validation
 	manifest := deploy.NewManifest(filepath.Join(repoDir, manifestFilePath))
 	for _, action := range manifest.Cortex.Actions {
 		cortex.DeployAction(filepath.Join(repoDir, action))
@@ -173,6 +184,15 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 	for _, snapshot := range manifest.Cortex.Snapshots {
 		relPath := parseManifestResourcePath(snapshot)
 		deploy.DeploySnapshot(cortex, filepath.Join(repoDir, relPath), actionImageMapping)
+	}
+	log.Println("Deployed all artifacts from manifest", manifestFilePath)
+}
+
+func deployCortexArtifacts(repoDir string, artifactDir string) {
+	var cortex = createCortexClientFromConfig()
+	// add connections, types, secrets .... experiments
+	for _, connection := range build.GlobFiles(filepath.Join(repoDir, artifactDir, "connections"), *jsonYamlFileRegex) {
+		cortex.DeployConnection(connection)
 	}
 }
 
@@ -206,17 +226,51 @@ func createCortexClientFromConfig() deploy.CortexAPI {
 	if pat != "" {
 		cortex = deploy.NewCortexClientPAT(project, pat)
 	} else if token != "" {
-		if url == "" || token == "" {
-			log.Fatalln(" Cortex URL or Token not provided. Either token or user/password (or Personal Access Token json path) need to be provided.")
+		if url == "" {
+			log.Fatalln(" Cortex URL for the Token not provided. Either token or user/password or Personal Access Token json file path need to be provided.")
 		}
 		cortex = deploy.NewCortexClientExistingToken(url, account, token)
-	} else {
-		if url == "" || user == "" || password == "" {
-			log.Fatalln(" Cortex URL or user/password not provided. Either token or user/password (or Personal Access Token json path) need to be provided.")
+	} else if user != "" && password != "" {
+		if url == "" {
+			log.Fatalln(" Cortex URL for the user/password not provided. Either token or user/password or Personal Access Token json file path need to be provided.")
 		}
 		cortex = deploy.NewCortexClient(url, account, user, password)
+	} else {
+		//fallback to cortex-cli config
+		cortex = getCortexCliV6Config(project)
 	}
+	//must not be nil
 	return cortex
+}
+
+func getCortexCliV6Config(project string) deploy.CortexAPI {
+	home, error := os.UserHomeDir()
+	configFilePath := filepath.Join(home, ".cortex/config")
+
+	log.Println("Creating Cortex client from cortex-cli config ", configFilePath)
+	if error != nil {
+		log.Fatalln("Failed to read cortex-cli config", error)
+	}
+	bytes, error := ioutil.ReadFile(configFilePath)
+	if error != nil {
+		log.Fatalln("Failed to parse cortex-cli config", error)
+	}
+	config := gjson.ParseBytes(bytes)
+	version := config.Get("version").String()
+	currentProfile := config.Get("currentProfile").String()
+	if version == "3" {
+		jwk := config.Get("profiles." + currentProfile)
+		if project == "" {
+			project = jwk.Get("project").String()
+		}
+		if project == "" {
+			log.Fatalln("Cortex project not provided. Either set CORTEX_PROJECT environment variable or set in cortex-cli config profile")
+		}
+		log.Println("Created cortex client from cortex-cli config", configFilePath, ". Profile:", currentProfile)
+		return deploy.NewCortexClientPATContent(project, []byte(jwk.Raw))
+	}
+	log.Fatalln("cortex-cli config supported only for V6 (JWK token)")
+	return nil
 }
 
 func validateArgs(cmd *cobra.Command, args []string) error {
