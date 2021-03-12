@@ -2,8 +2,8 @@
 CLI tool for deploying Cortex assets in an automated CI/CD pipeline. Cortex assets need to be snapshot & export using [cortex-cli](https://www.npmjs.com/package/cortex-cli). This will generate Cortex assets export and manifest file to drive deployment.
 
 #### Working with SSL certs issued by internal CAs
-Download SSL cert from Cortex DCI to add as trusted: `fabric fetchCert <Cortex DCI URL> </path/to/save/cert.pem>`
-Add downloaded cert as trusted one: Set environment variable `SSL_CERTS_DIR` to directory where cert is downloaded
+* Download SSL cert from Cortex DCI to add as trusted: `fabric fetchCert <Cortex DCI URL> </path/to/save/cert.pem>`
+* Add downloaded cert as trusted one: Set environment variable `SSL_CERTS_DIR` to directory where cert is downloaded
 
 #### Prerequisites
 * [cortex](https://www.npmjs.com/package/cortex-cli) (follow instruction on link to install CLI)
