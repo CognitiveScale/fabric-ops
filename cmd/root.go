@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"bytes"
+	"crypto/tls"
+	"encoding/pem"
 	"errors"
 	"fabric-ops/cmd/build"
 	"fabric-ops/cmd/deploy"
@@ -45,7 +48,7 @@ var rootCmd = &cobra.Command{
 		} else {
 			log.Println("Repo ", repoDir, " Dockerfiles ", dockerfiles)
 			var gitTag = build.DockerBuildVersion(repoDir)
-			var namespace = getEnvVar("DOCKER_PREGISTRY_PREFIX")
+			var namespace = deploy.GetEnvVar("DOCKER_PREGISTRY_PREFIX")
 			dockerimages := buildActionImages(dockerfiles, repoDir, gitTag, namespace)
 			for _, image := range dockerimages {
 				mapping[deploy.DockerImageName(image)] = image
@@ -77,7 +80,7 @@ var buildCmd = &cobra.Command{
 		}
 
 		var gitTag = build.DockerBuildVersion(repoDir)
-		var namespace = getEnvVar("DOCKER_PREGISTRY_PREFIX")
+		var namespace = deploy.GetEnvVar("DOCKER_PREGISTRY_PREFIX")
 
 		buildActionImages(dockerfiles, repoDir, gitTag, namespace)
 	},
@@ -133,7 +136,7 @@ var dockerLoginCmd = &cobra.Command{
 
 func buildActionImages(dockerfiles []string, repoDir string, gitTag string, namespace string) []string {
 	cortex := createCortexClientFromConfig()
-	registry := getEnvVar("DOCKER_PREGISTRY_URL")
+	registry := deploy.GetEnvVar("DOCKER_PREGISTRY_URL")
 	if namespace == "" {
 		namespace = cortex.GetAccount()
 	}
@@ -155,7 +158,7 @@ func buildActionImages(dockerfiles []string, repoDir string, gitTag string, name
 }
 
 func getBuildContext(repoDir string, dockerfile string) string {
-	buildContext := getEnvVar("DOCKER_BUILD_CONTEXT")
+	buildContext := deploy.GetEnvVar("DOCKER_BUILD_CONTEXT")
 	switch buildContext {
 	case "", "DOCKERFILE_CURRENT_DIR":
 		return filepath.Dir(dockerfile)
@@ -213,14 +216,14 @@ func parseManifestResourcePath(relativePath string) string {
 }
 
 func createCortexClientFromConfig() deploy.CortexAPI {
-	var url = strings.TrimSpace(strings.Trim(getEnvVar("CORTEX_URL"), "/"))
-	var account = strings.TrimSpace(getEnvVar("CORTEX_ACCOUNT"))
-	var user = strings.TrimSpace(getEnvVar("CORTEX_USER"))
-	var password = strings.TrimSpace(getEnvVar("CORTEX_PASSWORD"))
-	var token = strings.TrimSpace(getEnvVar("CORTEX_TOKEN"))
+	var url = strings.TrimSpace(strings.Trim(deploy.GetEnvVar("CORTEX_URL"), "/"))
+	var account = strings.TrimSpace(deploy.GetEnvVar("CORTEX_ACCOUNT"))
+	var user = strings.TrimSpace(deploy.GetEnvVar("CORTEX_USER"))
+	var password = strings.TrimSpace(deploy.GetEnvVar("CORTEX_PASSWORD"))
+	var token = strings.TrimSpace(deploy.GetEnvVar("CORTEX_TOKEN"))
 	// V6
-	var pat = strings.TrimSpace(getEnvVar("CORTEX_ACCESS_TOKEN_PATH"))
-	var project = strings.TrimSpace(getEnvVar("CORTEX_PROJECT"))
+	var pat = strings.TrimSpace(deploy.GetEnvVar("CORTEX_ACCESS_TOKEN_PATH"))
+	var project = strings.TrimSpace(deploy.GetEnvVar("CORTEX_PROJECT"))
 
 	var cortex deploy.CortexAPI
 	if pat != "" {
@@ -293,7 +296,7 @@ func Execute(version string) {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.AddCommand(buildCmd, deployCmd, dockerLoginCmd, generateDocsCmd)
+	rootCmd.AddCommand(buildCmd, deployCmd, dockerLoginCmd, generateDocsCmd, extractSSLCertCmd)
 	rootCmd.Flags().StringP("manifest", "m", defaultManifestFile, "Relative path of Manifest file <fabric.yaml>")
 	deployCmd.Flags().StringP("manifest", "m", defaultManifestFile, "Relative path of Manifest file <fabric.yaml>")
 
@@ -328,7 +331,34 @@ var generateDocsCmd = &cobra.Command{
 	},
 }
 
-//replaced viper.GetString to remove vulnerable dependencies FAB-789 and FAB-792
-func getEnvVar(varname string) string {
-	return os.Getenv(varname)
+var extractSSLCertCmd = &cobra.Command{
+	Use:   "fetchCert  <Server URL> <Path to save cert>",
+	Short: "Download SSL certificate from server",
+	Long:  `Download SSL certificate from server to add as trusted, in case its not from a public CA`,
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) < 2 {
+			return errors.New("requires Git repo directory")
+		}
+		return nil
+	},
+	Run: func(cmd *cobra.Command, args []string) {
+		conn, err := tls.Dial("tcp", args[0], &tls.Config{
+			InsecureSkipVerify: true,
+		})
+		if err != nil {
+			log.Fatalln("Failed to connect to server", err)
+		}
+		defer conn.Close()
+		var b bytes.Buffer
+		for _, cert := range conn.ConnectionState().PeerCertificates {
+			err := pem.Encode(&b, &pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: cert.Raw,
+			})
+			if err != nil {
+				log.Fatalln("Failed to save certificate", err)
+			}
+		}
+		ioutil.WriteFile(args[1], []byte(b.String()), 0400)
+	},
 }

@@ -3,6 +3,7 @@ package deploy
 import (
 	"bytes"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,9 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -437,10 +441,47 @@ func post(cortex CortexAPI, path string, body []byte) ([]byte, error) {
 	return do(cortex, path, HTTP_POST, body)
 }
 
-var IGNORE_INVALID_SSL_CERT = &http.Transport{
-	TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // ignore expired SSL certificates
+var client = setupHttpClient()
+
+func setupHttpClient() *http.Client {
+	config := &tls.Config{}
+
+	var ignoreCert, _ = strconv.ParseBool(GetEnvVar("IGNORE_INVALID_SSL_CERT"))
+	if ignoreCert {
+		config.InsecureSkipVerify = true
+	}
+	var sslCertsPath = GetEnvVar("SSL_CERTS_DIR")
+	if sslCertsPath != "" {
+		rootCAs, _ := x509.SystemCertPool()
+		if rootCAs == nil {
+			rootCAs = x509.NewCertPool()
+			log.Println("Using ")
+		}
+
+		files, err := ioutil.ReadDir(sslCertsPath)
+		if err != nil {
+			log.Fatalf("Failed to read certs from %s : %v", sslCertsPath, err)
+		}
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+			certFilePath := filepath.Join(sslCertsPath, file.Name())
+			certs, err := ioutil.ReadFile(certFilePath)
+			if err != nil {
+				log.Fatalln("Failed to add cert ", certFilePath, err)
+			}
+			log.Printf("Adding SSL Cert %s to trusted root", certFilePath)
+			if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
+				log.Printf("Failed to add SSL Cert %s to trusted root", certFilePath)
+			}
+		}
+		config.RootCAs = rootCAs
+	}
+	var client = &http.Client{Transport: &http.Transport{TLSClientConfig: config}}
+	return client
+
 }
-var client = &http.Client{Transport: IGNORE_INVALID_SSL_CERT}
 
 func do(cortex CortexAPI, path string, method string, body []byte) ([]byte, error) {
 	url, err := url.Parse(cortex.GetURL() + path)
@@ -474,4 +515,9 @@ func do(cortex CortexAPI, path string, method string, body []byte) ([]byte, erro
 func DockerImageName(dockerTag string) string {
 	splits := strings.Split(dockerTag, "/")
 	return strings.Split(splits[len(splits)-1], ":")[0]
+}
+
+//replaced viper.GetString to remove vulnerable dependencies FAB-789 and FAB-792
+func GetEnvVar(varname string) string {
+	return os.Getenv(varname)
 }
