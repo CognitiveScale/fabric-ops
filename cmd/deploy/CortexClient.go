@@ -441,7 +441,7 @@ func post(cortex CortexAPI, path string, body []byte) ([]byte, error) {
 	return do(cortex, path, HTTP_POST, body)
 }
 
-var client = setupHttpClient()
+var client *http.Client
 
 func setupHttpClient() *http.Client {
 	config := &tls.Config{}
@@ -455,7 +455,7 @@ func setupHttpClient() *http.Client {
 		rootCAs, _ := x509.SystemCertPool()
 		if rootCAs == nil {
 			rootCAs = x509.NewCertPool()
-			log.Println("Using ")
+			log.Println("SystemCertPool is not initialized. Using NewCertPool")
 		}
 
 		files, err := ioutil.ReadDir(sslCertsPath)
@@ -498,6 +498,10 @@ func do(cortex CortexAPI, path string, method string, body []byte) ([]byte, erro
 	}
 	if body != nil {
 		request.Body = ioutil.NopCloser(bytes.NewReader(body))
+	}
+	//lazy initialize
+	if client == nil {
+		client = setupHttpClient()
 	}
 	response, error := client.Do(request)
 	if error != nil {
