@@ -262,12 +262,13 @@ func (c *CortexClientV6) GetAccount() string {
 
 // TODO update V6 Docker registry logic as per updated Action deployment (when ready)
 func (c *CortexClientV6) GetDockerRegistry() string {
-	var result, error = get(c, "/v3/actions/_config")
-	if error != nil {
-		log.Fatalln(error)
-	}
-	value := gjson.Get(string(result), "config.dockerPrivateRegistryUrl").String()
-	return fmt.Sprint(value, "/", c.Project)
+	//var result, error = get(c, "/v3/actions/_config")
+	//if error != nil {
+	//log.Fatalln("")
+	//}
+	//value := gjson.Get(string(result), "config.dockerPrivateRegistryUrl").String()
+	//return fmt.Sprint(value, "/", c.Project)
+	return ""
 }
 
 func (c *CortexClientV6) DeployAction(filepath string) string {
