@@ -1,0 +1,7 @@
+{
+    "MainRoot": "",
+    "MainPkgName": "main",
+    "FirstParty": [
+        "github.cognitivescale.com"
+    ]
+}
