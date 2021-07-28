@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fabric-ops/cmd/build"
 	"fabric-ops/cmd/deploy"
-	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 	"github.com/tidwall/gjson"
@@ -195,8 +194,8 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 		relPath := parseManifestResourcePath(snapshot)
 		deploy.DeploySnapshot(cortex, filepath.Join(repoDir, relPath), actionImageMapping)
 	}
-	depsMapping := manifest.Cortex.Dependencies
-
+	//depsMapping := manifest.Cortex.Dependencies
+	// dependency checking is on hold https://cognitivescale.atlassian.net/browse/FAB-2481
 	var campaigns []string
 	for _, campaign := range manifest.Cortex.Campaign {
 		v6Client, ok := cortex.(*deploy.CortexClientV6)
@@ -207,9 +206,10 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 
 			//zip campaign
 			zipPath := zipDirectory(campaignBasepath)
-			deploy.DeployCampaign(*v6Client, zipPath, true, true)
-			campaignDepsPath := depsMapping[campaignPathSplits[1]]
-			fmt.Println(campaignDepsPath)
+			err := deploy.DeployCampaign(*v6Client, zipPath, true, true)
+			if err != nil {
+				log.Println("Campaign "+campaignPathSplits[1]+"deployment failed with: ", err)
+			}
 			campaigns = append(campaigns, filepath.Join(campaignPathSplits[0], campaignPathSplits[1]))
 		} else {
 			log.Fatalln("Configured Cortex URL and token configured are not of v6. Campaigns are supported in v6 onwards.")
@@ -217,6 +217,7 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 	}
 	for _, connection := range manifest.Cortex.Connection {
 		relPath := parseManifestResourcePath(connection)
+		// skip connections deployed in campaign deployment
 		skip := false
 		for _, campaign := range campaigns {
 			if strings.HasPrefix(connection, campaign) {

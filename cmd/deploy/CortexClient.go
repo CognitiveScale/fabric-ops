@@ -401,11 +401,16 @@ func DeployCampaign(cortex CortexClientV6, filename string, deployable bool, ove
 	bodyWriter.Close()
 
 	resp, err := fileUpload(&cortex, url, bodyBuf.Bytes(), contentType)
-	log.Println(json.MarshalIndent(resp, "", "  "))
 	if err != nil {
+		log.Println(string(resp))
 		return err
 	}
-	return nil
+	var prettyJSON bytes.Buffer
+	err = json.Indent(&prettyJSON, resp, "", "    ")
+	if err == nil {
+		log.Println("Campaign "+strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))+" deployment status: ", string(prettyJSON.Bytes()))
+	}
+	return err
 }
 
 // Common in v5 and v6
