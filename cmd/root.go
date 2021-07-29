@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"archive/zip"
 	"bytes"
 	"crypto/tls"
 	"encoding/pem"
@@ -10,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 	"github.com/tidwall/gjson"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -25,6 +27,7 @@ const (
 var (
 	dockerfileRegex, _   = regexp.Compile("Dockerfile")
 	jsonYamlFileRegex, _ = regexp.Compile(".*\\.(json|yaml)")
+	pathSep, _           = regexp.Compile(`\\|/`)
 )
 
 var rootCmd = &cobra.Command{
@@ -176,27 +179,88 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 
 	manifest := deploy.NewManifest(filepath.Join(repoDir, manifestFilePath))
 	for _, action := range manifest.Cortex.Actions {
-		cortex.DeployAction(filepath.Join(repoDir, action))
+		relPath := parseManifestResourcePath(action)
+		cortex.DeployAction(filepath.Join(repoDir, relPath))
 	}
 	for _, skill := range manifest.Cortex.Skills {
-		cortex.DeploySkill(filepath.Join(repoDir, skill))
+		relPath := parseManifestResourcePath(skill)
+		cortex.DeploySkill(filepath.Join(repoDir, relPath))
 	}
 	for _, agent := range manifest.Cortex.Agents {
-		cortex.DeployAgent(filepath.Join(repoDir, agent))
+		relPath := parseManifestResourcePath(agent)
+		cortex.DeployAgent(filepath.Join(repoDir, relPath))
 	}
 	for _, snapshot := range manifest.Cortex.Snapshots {
 		relPath := parseManifestResourcePath(snapshot)
 		deploy.DeploySnapshot(cortex, filepath.Join(repoDir, relPath), actionImageMapping)
 	}
+	//depsMapping := manifest.Cortex.Dependencies
+	// dependency checking is on hold https://cognitivescale.atlassian.net/browse/FAB-2481
+	var campaigns []string
+	for _, campaign := range manifest.Cortex.Campaign {
+		v6Client, ok := cortex.(*deploy.CortexClientV6)
+		if ok {
+			relPath := parseManifestResourcePath(campaign)
+			campaignPathSplits := pathSep.Split(relPath, 3)
+			campaignBasepath := filepath.Join(repoDir, campaignPathSplits[0], campaignPathSplits[1])
+
+			//zip campaign
+			zipPath := zipDirectory(campaignBasepath)
+			err := deploy.DeployCampaign(*v6Client, zipPath, true, true)
+			if err != nil {
+				log.Println("Campaign "+campaignPathSplits[1]+"deployment failed with: ", err)
+			}
+			campaigns = append(campaigns, filepath.Join(campaignPathSplits[0], campaignPathSplits[1]))
+		} else {
+			log.Fatalln("Configured Cortex URL and token configured are not of v6. Campaigns are supported in v6 onwards.")
+		}
+	}
+	for _, connection := range manifest.Cortex.Connection {
+		relPath := parseManifestResourcePath(connection)
+		// skip connections deployed in campaign deployment
+		skip := false
+		for _, campaign := range campaigns {
+			if strings.HasPrefix(connection, campaign) {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			cortex.DeployConnection(filepath.Join(repoDir, relPath))
+		}
+	}
+
 	log.Println("Deployed all artifacts from manifest", manifestFilePath)
 }
 
-func deployCortexArtifacts(repoDir string, artifactDir string) {
-	var cortex = createCortexClientFromConfig()
-	// add connections, types, secrets .... experiments
-	for _, connection := range build.GlobFiles(filepath.Join(repoDir, artifactDir, "connections"), *jsonYamlFileRegex) {
-		cortex.DeployConnection(connection)
+func zipDirectory(basepath string) string {
+	archive, err := os.Create(basepath + ".zip")
+	if err != nil {
+		panic(err)
 	}
+	defer archive.Close()
+	zipWriter := zip.NewWriter(archive)
+
+	filepath.Walk(basepath, func(path string, f os.FileInfo, err error) error {
+		if f.IsDir() {
+			return nil
+		}
+		f1, err := os.Open(path)
+		if err != nil {
+			panic(err)
+		}
+		defer f1.Close()
+		w1, err := zipWriter.Create(strings.TrimPrefix(path, basepath+"/"))
+		if err != nil {
+			panic(err)
+		}
+		if _, err := io.Copy(w1, f1); err != nil {
+			panic(err)
+		}
+		return nil
+	})
+	zipWriter.Close()
+	return basepath + ".zip"
 }
 
 /**

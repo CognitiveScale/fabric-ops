@@ -12,8 +12,10 @@ import (
 	"github.com/tidwall/sjson"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
+	"io"
 	"io/ioutil"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -366,10 +368,49 @@ func GetJsonContent(filepath string) ([]byte, error) {
 	if err != nil {
 		return content, err
 	}
-	if strings.HasSuffix(filepath, ".yaml") {
+	if strings.HasSuffix(filepath, ".yaml") || strings.HasSuffix(filepath, ".yml") {
 		content, err = yaml.YAMLToJSON(content)
 	}
 	return content, err
+}
+
+func DeployCampaign(cortex CortexClientV6, filename string, deployable bool, overwrite bool) error {
+	url := "/fabric/v4/projects/" + cortex.Project + "/campaigns/import?deployable=" + strconv.FormatBool(deployable) + "&overwrite=" + strconv.FormatBool(overwrite)
+	bodyBuf := &bytes.Buffer{}
+	bodyWriter := multipart.NewWriter(bodyBuf)
+
+	fileWriter, err := bodyWriter.CreateFormFile("file", filename)
+	if err != nil {
+		log.Println("error creating form data for file upload")
+		return err
+	}
+
+	fh, err := os.Open(filename)
+	if err != nil {
+		log.Println("error opening campaign zip file")
+		return err
+	}
+	defer fh.Close()
+
+	_, err = io.Copy(fileWriter, fh)
+	if err != nil {
+		return err
+	}
+
+	contentType := bodyWriter.FormDataContentType()
+	bodyWriter.Close()
+
+	resp, err := fileUpload(&cortex, url, bodyBuf.Bytes(), contentType)
+	if err != nil {
+		log.Println(string(resp))
+		return err
+	}
+	var prettyJSON bytes.Buffer
+	err = json.Indent(&prettyJSON, resp, "", "    ")
+	if err == nil {
+		log.Println("Campaign "+strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))+" deployment status: ", string(prettyJSON.Bytes()))
+	}
+	return err
 }
 
 // Common in v5 and v6
@@ -434,11 +475,15 @@ func DeploySnapshot(cortex CortexAPI, filepath string, actionImageMapping map[st
 }
 
 func get(cortex CortexAPI, path string) ([]byte, error) {
-	return do(cortex, path, HTTP_GET, nil)
+	return do(cortex, path, HTTP_GET, nil, "application/json")
 }
 
 func post(cortex CortexAPI, path string, body []byte) ([]byte, error) {
-	return do(cortex, path, HTTP_POST, body)
+	return do(cortex, path, HTTP_POST, body, "application/json")
+}
+
+func fileUpload(cortex CortexAPI, path string, body []byte, contentType string) ([]byte, error) {
+	return do(cortex, path, HTTP_POST, body, contentType)
 }
 
 var client *http.Client
@@ -483,7 +528,7 @@ func setupHttpClient() *http.Client {
 
 }
 
-func do(cortex CortexAPI, path string, method string, body []byte) ([]byte, error) {
+func do(cortex CortexAPI, path string, method string, body []byte, contentType string) ([]byte, error) {
 	url, err := url.Parse(cortex.GetURL() + path)
 	if err != nil {
 		log.Fatalln(err)
@@ -492,7 +537,7 @@ func do(cortex CortexAPI, path string, method string, body []byte) ([]byte, erro
 		URL:    url,
 		Method: method,
 		Header: map[string][]string{
-			"Content-Type":  {"application/json"},
+			"Content-Type":  {contentType},
 			"Authorization": {fmt.Sprint("Bearer ", cortex.GetToken())},
 		},
 	}

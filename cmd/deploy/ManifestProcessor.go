@@ -12,6 +12,11 @@ type Manifest struct {
 		Skills    []string
 		Actions   []string
 		Snapshots []string
+
+		Connection []string
+		Campaign   []string
+
+		Dependencies map[string]interface{} `yaml:"_dependencies"`
 	} `yaml: "cortex"`
 }
 
