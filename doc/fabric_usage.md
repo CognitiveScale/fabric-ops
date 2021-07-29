@@ -81,3 +81,19 @@ Docker login for pushing images
 ### Options
 
       -h, --help   help for dockerAuth
+
+fabric fetchCert
+----------------
+
+Download SSL certificate from server
+
+### Synopsis
+
+Download SSL certificate from server to add as trusted, in case its not
+from a public CA
+
+    fabric fetchCert  <Server URL> <Path to save cert> [flags]
+
+### Options
+
+      -h, --help   help for fetchCert
