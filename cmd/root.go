@@ -342,11 +342,14 @@ func createCortexClientFromConfig() deploy.CortexAPI {
 	var token = strings.TrimSpace(deploy.GetEnvVar("CORTEX_TOKEN"))
 	// V6
 	var pat = strings.TrimSpace(deploy.GetEnvVar("CORTEX_ACCESS_TOKEN_PATH"))
+	var patJson = strings.TrimSpace(deploy.GetEnvVar("CORTEX_ACCESS_TOKEN_VALUE"))
 	var project = strings.TrimSpace(deploy.GetEnvVar("CORTEX_PROJECT"))
 
 	var cortex deploy.CortexAPI
-	if pat != "" {
+	if pat != "" || patJson != "" {
 		cortex = deploy.NewCortexClientPAT(project, pat)
+	} else if patJson != "" {
+		cortex = deploy.NewCortexClientPATContent(project, []byte(patJson))
 	} else if token != "" {
 		if url == "" {
 			log.Fatalln(" Cortex URL for the Token not provided. Either token or user/password or Personal Access Token json file path need to be provided.")
