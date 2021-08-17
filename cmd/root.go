@@ -174,25 +174,73 @@ func getBuildContext(repoDir string, dockerfile string) string {
 	}
 }
 
+func checkTransformerExists(repoDir string) map[string]bool {
+	scriptTypeExists := map[string]bool{}
+	resourceTypes := []string{"agent", "snapshot", "skill, action", "connection"}
+	for _, resourceType := range resourceTypes {
+		scriptPath := filepath.Join(repoDir, ".fabric", "_transformers", resourceType+".jsonnet")
+		if _, err := os.Stat(scriptPath); os.IsExist(err) {
+			scriptTypeExists[resourceType] = true
+		} else {
+			scriptTypeExists[resourceType] = false
+		}
+	}
+	return scriptTypeExists
+}
+
+func transformResource(resourceType string, repoDir string, relPath string, manifestFilePath string) string {
+	scriptPath := filepath.Join(repoDir, ".fabric", "_transformers", resourceType+".jsonnet")
+	json, err := deploy.Transform(filepath.Join(repoDir, relPath), scriptPath, resourceType, repoDir, manifestFilePath)
+	if err != nil {
+		log.Fatalln("Failed to transform resource", relPath, "using", scriptPath, err)
+	}
+	resourcePath := filepath.Join(repoDir, "_tmp", relPath) + ".json"
+	deploy.WriteToPath(resourcePath, []byte(json))
+	return resourcePath
+}
+
 func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMapping map[string]string) {
 	var cortex = createCortexClientFromConfig()
 
+	// check if transformer jsonnet script exists for the resource type
+	scriptTypeExists := checkTransformerExists(repoDir)
+	// process manifest
 	manifest := deploy.NewManifest(filepath.Join(repoDir, manifestFilePath))
 	for _, action := range manifest.Cortex.Actions {
 		relPath := parseManifestResourcePath(action)
-		cortex.DeployAction(filepath.Join(repoDir, relPath))
+		if scriptTypeExists["action"] {
+			transformedResource := transformResource("action", repoDir, relPath, manifestFilePath)
+			cortex.DeployAction(transformedResource)
+		} else {
+			cortex.DeployAction(filepath.Join(repoDir, relPath))
+		}
 	}
 	for _, skill := range manifest.Cortex.Skills {
 		relPath := parseManifestResourcePath(skill)
-		cortex.DeploySkill(filepath.Join(repoDir, relPath))
+		if scriptTypeExists["skill"] {
+			transformedResource := transformResource("skill", repoDir, relPath, manifestFilePath)
+			cortex.DeploySkill(transformedResource)
+		} else {
+			cortex.DeploySkill(filepath.Join(repoDir, relPath))
+		}
 	}
 	for _, agent := range manifest.Cortex.Agents {
 		relPath := parseManifestResourcePath(agent)
-		cortex.DeployAgent(filepath.Join(repoDir, relPath))
+		if scriptTypeExists["agent"] {
+			transformedResource := transformResource("agent", repoDir, relPath, manifestFilePath)
+			cortex.DeployAgent(transformedResource)
+		} else {
+			cortex.DeployAgent(filepath.Join(repoDir, relPath))
+		}
 	}
 	for _, snapshot := range manifest.Cortex.Snapshots {
 		relPath := parseManifestResourcePath(snapshot)
-		deploy.DeploySnapshot(cortex, filepath.Join(repoDir, relPath), actionImageMapping)
+		if scriptTypeExists["snapshot"] {
+			transformedResource := transformResource("snapshot", repoDir, relPath, manifestFilePath)
+			deploy.DeploySnapshot(cortex, transformedResource, actionImageMapping)
+		} else {
+			deploy.DeploySnapshot(cortex, filepath.Join(repoDir, relPath), actionImageMapping)
+		}
 	}
 	//depsMapping := manifest.Cortex.Dependencies
 	// dependency checking is on hold https://cognitivescale.atlassian.net/browse/FAB-2481
@@ -211,6 +259,7 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 				log.Println("Campaign "+campaignPathSplits[1]+"deployment failed with: ", err)
 			}
 			campaigns = append(campaigns, filepath.Join(campaignPathSplits[0], campaignPathSplits[1]))
+			os.Remove(zipPath)
 		} else {
 			log.Fatalln("Configured Cortex URL and token configured are not of v6. Campaigns are supported in v6 onwards.")
 		}
@@ -226,11 +275,17 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 			}
 		}
 		if !skip {
-			cortex.DeployConnection(filepath.Join(repoDir, relPath))
+			if scriptTypeExists["connection"] {
+				transformedResource := transformResource("connection", repoDir, relPath, manifestFilePath)
+				cortex.DeployConnection(transformedResource)
+			} else {
+				cortex.DeployConnection(filepath.Join(repoDir, relPath))
+			}
 		}
 	}
 
 	log.Println("Deployed all artifacts from manifest", manifestFilePath)
+	defer os.RemoveAll(filepath.Join(repoDir, "_tmp"))
 }
 
 func zipDirectory(basepath string) string {
@@ -259,7 +314,7 @@ func zipDirectory(basepath string) string {
 		}
 		return nil
 	})
-	zipWriter.Close()
+	defer zipWriter.Close()
 	return basepath + ".zip"
 }
 
