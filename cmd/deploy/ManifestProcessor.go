@@ -13,6 +13,10 @@ type Manifest struct {
 		Actions   []string
 		Snapshots []string
 
+		Experiment []string
+		Model      []string
+		Run        []string
+
 		Connection []string
 		Campaign   []string
 

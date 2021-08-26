@@ -27,6 +27,7 @@ import (
 
 const HTTP_POST = "POST"
 const HTTP_GET = "GET"
+const ARTIFACT_DIR = ".fabric"
 
 type CortexClientV6 struct {
 	Url     string
@@ -411,6 +412,59 @@ func DeployCampaign(cortex CortexClientV6, filename string, deployable bool, ove
 		log.Println("Campaign "+strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))+" deployment status: ", string(prettyJSON.Bytes()))
 	}
 	return err
+}
+
+func DeployModel(cortex CortexClientV6, filepath string) string {
+	content, err := GetJsonContent(filepath)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	res, err := post(&cortex, "/fabric/v4/projects/"+cortex.Project+"/models", content)
+	if err != nil {
+		log.Println(string(res))
+		log.Fatalln(err)
+	}
+	return string(res)
+}
+
+func DeployExperiment(cortex CortexClientV6, filepath string) string {
+	content, err := GetJsonContent(filepath)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	res, err := post(&cortex, "/fabric/v4/projects/"+cortex.Project+"/experiments", content)
+	if err != nil {
+		log.Println(string(res))
+		log.Fatalln(err)
+	}
+	return string(res)
+}
+
+func DeployExperimentRun(cortex CortexClientV6, filename string) string {
+	content, err := GetJsonContent(filename)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	run := gjson.Parse(string(content))
+	expName := run.Get("experimentName").String()
+	runId := run.Get("runId").String()
+	artifacts := run.Get("artifacts")
+	path := "/fabric/v4/projects/" + cortex.Project + "/experiments/" + url.PathEscape(expName) + "/runs"
+	res, err := post(&cortex, path+"?runId="+url.QueryEscape(runId), content)
+	if err != nil {
+		log.Println(string(res))
+		log.Fatalln(err)
+	}
+	if artifacts.Exists() {
+		for k, v := range artifacts.Value().(map[string]string) {
+			content, err := ioutil.ReadFile(filepath.Join(ARTIFACT_DIR, v))
+			if err != nil {
+				log.Fatalln(err)
+			}
+			fileUpload(&cortex, path+"/"+runId+"/artifacts/"+k, content, "application/octet-stream")
+		}
+	}
+	return string(res)
 }
 
 // Common in v5 and v6
