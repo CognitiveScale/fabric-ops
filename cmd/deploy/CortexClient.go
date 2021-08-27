@@ -26,6 +26,7 @@ import (
 )
 
 const HTTP_POST = "POST"
+const HTTP_DELETE = "DELETE"
 const HTTP_GET = "GET"
 const ARTIFACT_DIR = ".fabric"
 
@@ -419,6 +420,19 @@ func DeployModel(cortex CortexClientV6, filepath string) string {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	model := gjson.Parse(string(content))
+	status := model.Get("status").String()
+	// models can't be created with Published status, but exported only if published. So creating without status (using default initial status) and saving again with Published status
+	if status == "Published" {
+		modelBody := model.Value().(map[string]interface{})
+		modelBody["status"] = "In development"
+		initial, _ := json.Marshal(modelBody)
+		res, err := post(&cortex, "/fabric/v4/projects/"+cortex.Project+"/models", initial)
+		if err != nil {
+			log.Println(string(res))
+			log.Fatalln(err)
+		}
+	}
 	res, err := post(&cortex, "/fabric/v4/projects/"+cortex.Project+"/models", content)
 	if err != nil {
 		log.Println(string(res))
@@ -440,7 +454,7 @@ func DeployExperiment(cortex CortexClientV6, filepath string) string {
 	return string(res)
 }
 
-func DeployExperimentRun(cortex CortexClientV6, filename string) string {
+func DeployExperimentRun(cortex CortexClientV6, filename string, repoDir string) string {
 	content, err := GetJsonContent(filename)
 	if err != nil {
 		log.Fatalln(err)
@@ -450,14 +464,16 @@ func DeployExperimentRun(cortex CortexClientV6, filename string) string {
 	runId := run.Get("runId").String()
 	artifacts := run.Get("artifacts")
 	path := "/fabric/v4/projects/" + cortex.Project + "/experiments/" + url.PathEscape(expName) + "/runs"
-	res, err := post(&cortex, path+"?runId="+url.QueryEscape(runId), content)
+	// experiment run is not upsert API, so deleting and inserting
+	delete(&cortex, path+"/"+runId)
+	res, err := post(&cortex, path, content)
 	if err != nil {
 		log.Println(string(res))
 		log.Fatalln(err)
 	}
 	if artifacts.Exists() {
-		for k, v := range artifacts.Value().(map[string]string) {
-			content, err := ioutil.ReadFile(filepath.Join(ARTIFACT_DIR, v))
+		for k, v := range artifacts.Value().(map[string]interface{}) {
+			content, err := ioutil.ReadFile(filepath.Join(repoDir, ARTIFACT_DIR, v.(string)))
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -534,6 +550,10 @@ func get(cortex CortexAPI, path string) ([]byte, error) {
 
 func post(cortex CortexAPI, path string, body []byte) ([]byte, error) {
 	return do(cortex, path, HTTP_POST, body, "application/json")
+}
+
+func delete(cortex CortexAPI, path string) ([]byte, error) {
+	return do(cortex, path, HTTP_DELETE, nil, "application/json")
 }
 
 func fileUpload(cortex CortexAPI, path string, body []byte, contentType string) ([]byte, error) {

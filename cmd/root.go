@@ -41,7 +41,7 @@ var rootCmd = &cobra.Command{
 	`,
 	DisableAutoGenTag: true,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Println("Building Cortex Actions in repo checkout ", args[0])
+		log.Println("Building Cortex Action in repo checkout ", args[0])
 		var repoDir = args[0]
 		var dockerfiles = build.GlobFiles(repoDir, *dockerfileRegex)
 		mapping := map[string]string{} // get docker images built
@@ -74,7 +74,7 @@ var buildCmd = &cobra.Command{
 	Short:                 "Search for Dockerfile(s) in Git repo and builds Docker images",
 	Long:                  `Follows convention: Build docker image using Dockerfile and configured build context, <DOCKER_PREGISTRY_PREFIX as namespace>/<image name as parent dir>:g<Git tag and version>, and return build image details`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Println("Building Cortex Actions in repo checkout ", args[0])
+		log.Println("Building Cortex Action in repo checkout ", args[0])
 		var repoDir = args[0]
 		var dockerfiles = build.GlobFiles(repoDir, *dockerfileRegex)
 		if len(dockerfiles) == 0 {
@@ -230,6 +230,10 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 			log.Fatalln("Configured Cortex URL and token configured are not of v6. Campaigns are supported in v6 onwards.")
 		}
 	}
+	// deploy types
+	for _, typ := range manifest.Cortex.Type {
+		cortex.DeployTypes(filepath.Join(repoDir, parseManifestResourcePath(typ)))
+	}
 	// deploy connections excluding those deployed as part of campaigns
 	for _, connection := range manifest.Cortex.Connection {
 		relPath := parseManifestResourcePath(connection)
@@ -314,16 +318,16 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 			if !skip {
 				if scriptTypeExists["run"] {
 					transformedResource := transformResource("run", repoDir, relPath, manifestFilePath)
-					deploy.DeployExperimentRun(*v6Client, transformedResource)
+					deploy.DeployExperimentRun(*v6Client, transformedResource, repoDir)
 				} else {
-					deploy.DeployExperimentRun(*v6Client, filepath.Join(repoDir, relPath))
+					deploy.DeployExperimentRun(*v6Client, filepath.Join(repoDir, relPath), repoDir)
 				}
 			}
 		} else {
 			log.Fatalln("Run deployment support is for Cortex v6 onwards")
 		}
 	}
-	for _, action := range manifest.Cortex.Actions {
+	for _, action := range manifest.Cortex.Action {
 		relPath := parseManifestResourcePath(action)
 		if scriptTypeExists["action"] {
 			transformedResource := transformResource("action", repoDir, relPath, manifestFilePath)
@@ -332,7 +336,7 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 			cortex.DeployAction(filepath.Join(repoDir, relPath))
 		}
 	}
-	for _, skill := range manifest.Cortex.Skills {
+	for _, skill := range manifest.Cortex.Skill {
 		relPath := parseManifestResourcePath(skill)
 		if scriptTypeExists["skill"] {
 			transformedResource := transformResource("skill", repoDir, relPath, manifestFilePath)
@@ -341,13 +345,22 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 			cortex.DeploySkill(filepath.Join(repoDir, relPath))
 		}
 	}
-	for _, agent := range manifest.Cortex.Agents {
+	for _, agent := range manifest.Cortex.Agent {
 		relPath := parseManifestResourcePath(agent)
-		if scriptTypeExists["agent"] {
-			transformedResource := transformResource("agent", repoDir, relPath, manifestFilePath)
-			cortex.DeployAgent(transformedResource)
-		} else {
-			cortex.DeployAgent(filepath.Join(repoDir, relPath))
+		skip := false
+		for _, campaign := range campaigns {
+			if strings.HasPrefix(agent, campaign) {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			if scriptTypeExists["agent"] {
+				transformedResource := transformResource("agent", repoDir, relPath, manifestFilePath)
+				cortex.DeployAgent(transformedResource)
+			} else {
+				cortex.DeployAgent(filepath.Join(repoDir, relPath))
+			}
 		}
 	}
 	for _, snapshot := range manifest.Cortex.Snapshots {
@@ -421,7 +434,7 @@ func createCortexClientFromConfig() deploy.CortexAPI {
 	var project = strings.TrimSpace(deploy.GetEnvVar("CORTEX_PROJECT"))
 
 	var cortex deploy.CortexAPI
-	if pat != "" || patJson != "" {
+	if pat != "" {
 		cortex = deploy.NewCortexClientPAT(project, pat)
 	} else if patJson != "" {
 		cortex = deploy.NewCortexClientPATContent(project, []byte(patJson))
