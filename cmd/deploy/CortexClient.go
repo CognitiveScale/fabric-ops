@@ -28,6 +28,7 @@ import (
 const HTTP_POST = "POST"
 const HTTP_DELETE = "DELETE"
 const HTTP_GET = "GET"
+const HTTP_PUT = "PUT"
 const ARTIFACT_DIR = ".fabric"
 
 type CortexClientV6 struct {
@@ -402,7 +403,7 @@ func DeployCampaign(cortex CortexClientV6, filename string, deployable bool, ove
 	contentType := bodyWriter.FormDataContentType()
 	bodyWriter.Close()
 
-	resp, err := fileUpload(&cortex, url, bodyBuf.Bytes(), contentType)
+	resp, err := fileUpload(&cortex, url, bodyBuf.Bytes(), contentType, HTTP_POST)
 	if err != nil {
 		log.Println(string(resp))
 		return err
@@ -477,7 +478,10 @@ func DeployExperimentRun(cortex CortexClientV6, filename string, repoDir string)
 			if err != nil {
 				log.Fatalln(err)
 			}
-			fileUpload(&cortex, path+"/"+runId+"/artifacts/"+k, content, "application/octet-stream")
+			msg, err := fileUpload(&cortex, path+"/"+runId+"/artifacts/"+k, content, "application/octet-stream", HTTP_PUT)
+			if err != nil {
+				log.Fatalln(string(msg), err)
+			}
 		}
 	}
 	return string(res)
@@ -556,8 +560,8 @@ func delete(cortex CortexAPI, path string) ([]byte, error) {
 	return do(cortex, path, HTTP_DELETE, nil, "application/json")
 }
 
-func fileUpload(cortex CortexAPI, path string, body []byte, contentType string) ([]byte, error) {
-	return do(cortex, path, HTTP_POST, body, contentType)
+func fileUpload(cortex CortexAPI, path string, body []byte, contentType string, method string) ([]byte, error) {
+	return do(cortex, path, method, body, contentType)
 }
 
 var client *http.Client

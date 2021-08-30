@@ -176,14 +176,11 @@ func getBuildContext(repoDir string, dockerfile string) string {
 
 func checkTransformerExists(repoDir string) map[string]bool {
 	scriptTypeExists := map[string]bool{}
-	resourceTypes := []string{"agent", "snapshot", "skill, action", "connection"}
+	resourceTypes := []string{"agent", "snapshot", "skill", "action", "connection"}
 	for _, resourceType := range resourceTypes {
-		scriptPath := filepath.Join(repoDir, ".fabric", "_transformers", resourceType+".jsonnet")
-		if _, err := os.Stat(scriptPath); os.IsExist(err) {
-			scriptTypeExists[resourceType] = true
-		} else {
-			scriptTypeExists[resourceType] = false
-		}
+		scriptPath := filepath.Join(repoDir, deploy.ARTIFACT_DIR, "_transformers", resourceType+".jsonnet")
+		_, err := os.Stat(scriptPath)
+		scriptTypeExists[resourceType] = !os.IsNotExist(err)
 	}
 	return scriptTypeExists
 }
