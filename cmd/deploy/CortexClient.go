@@ -30,6 +30,7 @@ const HTTP_DELETE = "DELETE"
 const HTTP_GET = "GET"
 const HTTP_PUT = "PUT"
 const ARTIFACT_DIR = ".fabric"
+const V6_BASE_URI = "/fabric/v4/projects/"
 
 type CortexClientV6 struct {
 	Url     string
@@ -285,7 +286,7 @@ func (c *CortexClientV6) DeployAction(filepath string) string {
 }
 
 func (c *CortexClientV6) DeployActionJson(actionType string, content []byte) string {
-	var result, error = post(c, "/fabric/v4/projects/"+c.Project+"/actions?actionType="+actionType, content)
+	var result, error = post(c, V6_BASE_URI+c.Project+"/actions?actionType="+actionType, content)
 	if error != nil {
 		log.Fatalln(error)
 	}
@@ -302,7 +303,7 @@ func (c *CortexClientV6) DeploySkill(filepath string) string {
 }
 
 func (c *CortexClientV6) DeploySkillJson(content []byte) string {
-	var result, error = post(c, "/fabric/v4/projects/"+c.Project+"/skills", content)
+	var result, error = post(c, V6_BASE_URI+c.Project+"/skills", content)
 	if error != nil {
 		log.Fatalln(error)
 	}
@@ -319,7 +320,7 @@ func (c *CortexClientV6) DeployAgent(filepath string) string {
 }
 
 func (c *CortexClientV6) DeployAgentJson(content []byte) string {
-	var result, error = post(c, "/fabric/v4/projects/"+c.Project+"/agents", content)
+	var result, error = post(c, V6_BASE_URI+c.Project+"/agents", content)
 	if error != nil {
 		log.Fatalln(error)
 	}
@@ -327,7 +328,7 @@ func (c *CortexClientV6) DeployAgentJson(content []byte) string {
 }
 
 func (c *CortexClientV6) DeployDatasetJson(content []byte) string {
-	var result, error = post(c, "/fabric/v4/projects/"+c.Project+"/datasets", content)
+	var result, error = post(c, V6_BASE_URI+c.Project+"/datasets", content)
 	if error != nil {
 		log.Fatalln(error)
 	}
@@ -343,7 +344,7 @@ func (c *CortexClientV6) DeployTypes(filepath string) string {
 }
 
 func (c *CortexClientV6) DeployTypesJson(content []byte) string {
-	var result, error = post(c, "/fabric/v4/projects/"+c.Project+"/types", content)
+	var result, error = post(c, V6_BASE_URI+c.Project+"/types", content)
 	if error != nil {
 		log.Fatalln(error)
 	}
@@ -359,7 +360,7 @@ func (c *CortexClientV6) DeployConnection(filepath string) string {
 }
 
 func (c *CortexClientV6) DeployConnectionJson(content []byte) string {
-	var result, error = post(c, "/fabric/v4/projects/"+c.Project+"/connections", content)
+	var result, error = post(c, V6_BASE_URI+c.Project+"/connections", content)
 	if error != nil {
 		log.Fatalln(error)
 	}
@@ -378,7 +379,7 @@ func GetJsonContent(filepath string) ([]byte, error) {
 }
 
 func DeployCampaign(cortex CortexClientV6, filename string, deployable bool, overwrite bool) error {
-	url := "/fabric/v4/projects/" + cortex.Project + "/campaigns/import?deployable=" + strconv.FormatBool(deployable) + "&overwrite=" + strconv.FormatBool(overwrite)
+	url := V6_BASE_URI + cortex.Project + "/campaigns/import?deployable=" + strconv.FormatBool(deployable) + "&overwrite=" + strconv.FormatBool(overwrite)
 	bodyBuf := &bytes.Buffer{}
 	bodyWriter := multipart.NewWriter(bodyBuf)
 
@@ -428,13 +429,13 @@ func DeployModel(cortex CortexClientV6, filepath string) string {
 		modelBody := model.Value().(map[string]interface{})
 		modelBody["status"] = "In development"
 		initial, _ := json.Marshal(modelBody)
-		res, err := post(&cortex, "/fabric/v4/projects/"+cortex.Project+"/models", initial)
+		res, err := post(&cortex, V6_BASE_URI+cortex.Project+"/models", initial)
 		if err != nil {
 			log.Println(string(res))
 			log.Fatalln(err)
 		}
 	}
-	res, err := post(&cortex, "/fabric/v4/projects/"+cortex.Project+"/models", content)
+	res, err := post(&cortex, V6_BASE_URI+cortex.Project+"/models", content)
 	if err != nil {
 		log.Println(string(res))
 		log.Fatalln(err)
@@ -447,7 +448,7 @@ func DeployExperiment(cortex CortexClientV6, filepath string) string {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	res, err := post(&cortex, "/fabric/v4/projects/"+cortex.Project+"/experiments", content)
+	res, err := post(&cortex, V6_BASE_URI+cortex.Project+"/experiments", content)
 	if err != nil {
 		log.Println(string(res))
 		log.Fatalln(err)
@@ -464,7 +465,7 @@ func DeployExperimentRun(cortex CortexClientV6, filename string, repoDir string)
 	expName := run.Get("experimentName").String()
 	runId := run.Get("runId").String()
 	artifacts := run.Get("artifacts")
-	path := "/fabric/v4/projects/" + cortex.Project + "/experiments/" + url.PathEscape(expName) + "/runs"
+	path := V6_BASE_URI + cortex.Project + "/experiments/" + url.PathEscape(expName) + "/runs"
 	// experiment run is not upsert API, so deleting and inserting
 	delete(&cortex, path+"/"+runId)
 	res, err := post(&cortex, path, content)
