@@ -8,10 +8,15 @@ import (
 
 type Manifest struct {
 	Cortex struct {
-		Agents    []string
-		Skills    []string
-		Actions   []string
+		Agent     []string
+		Skill     []string
+		Action    []string
 		Snapshots []string
+		Type      []string
+
+		Experiment []string
+		Model      []string
+		Run        []string
 
 		Connection []string
 		Campaign   []string

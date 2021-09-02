@@ -41,7 +41,7 @@ var rootCmd = &cobra.Command{
 	`,
 	DisableAutoGenTag: true,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Println("Building Cortex Actions in repo checkout ", args[0])
+		log.Println("Building Cortex Action in repo checkout ", args[0])
 		var repoDir = args[0]
 		var dockerfiles = build.GlobFiles(repoDir, *dockerfileRegex)
 		mapping := map[string]string{} // get docker images built
@@ -74,7 +74,7 @@ var buildCmd = &cobra.Command{
 	Short:                 "Search for Dockerfile(s) in Git repo and builds Docker images",
 	Long:                  `Follows convention: Build docker image using Dockerfile and configured build context, <DOCKER_PREGISTRY_PREFIX as namespace>/<image name as parent dir>:g<Git tag and version>, and return build image details`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Println("Building Cortex Actions in repo checkout ", args[0])
+		log.Println("Building Cortex Action in repo checkout ", args[0])
 		var repoDir = args[0]
 		var dockerfiles = build.GlobFiles(repoDir, *dockerfileRegex)
 		if len(dockerfiles) == 0 {
@@ -176,14 +176,11 @@ func getBuildContext(repoDir string, dockerfile string) string {
 
 func checkTransformerExists(repoDir string) map[string]bool {
 	scriptTypeExists := map[string]bool{}
-	resourceTypes := []string{"agent", "snapshot", "skill, action", "connection"}
+	resourceTypes := []string{"agent", "snapshot", "skill", "action", "connection"}
 	for _, resourceType := range resourceTypes {
-		scriptPath := filepath.Join(repoDir, ".fabric", "_transformers", resourceType+".jsonnet")
-		if _, err := os.Stat(scriptPath); os.IsExist(err) {
-			scriptTypeExists[resourceType] = true
-		} else {
-			scriptTypeExists[resourceType] = false
-		}
+		scriptPath := filepath.Join(repoDir, deploy.ARTIFACT_DIR, "_transformers", resourceType+".jsonnet")
+		_, err := os.Stat(scriptPath)
+		scriptTypeExists[resourceType] = !os.IsNotExist(err)
 	}
 	return scriptTypeExists
 }
@@ -206,44 +203,10 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 	scriptTypeExists := checkTransformerExists(repoDir)
 	// process manifest
 	manifest := deploy.NewManifest(filepath.Join(repoDir, manifestFilePath))
-	for _, action := range manifest.Cortex.Actions {
-		relPath := parseManifestResourcePath(action)
-		if scriptTypeExists["action"] {
-			transformedResource := transformResource("action", repoDir, relPath, manifestFilePath)
-			cortex.DeployAction(transformedResource)
-		} else {
-			cortex.DeployAction(filepath.Join(repoDir, relPath))
-		}
-	}
-	for _, skill := range manifest.Cortex.Skills {
-		relPath := parseManifestResourcePath(skill)
-		if scriptTypeExists["skill"] {
-			transformedResource := transformResource("skill", repoDir, relPath, manifestFilePath)
-			cortex.DeploySkill(transformedResource)
-		} else {
-			cortex.DeploySkill(filepath.Join(repoDir, relPath))
-		}
-	}
-	for _, agent := range manifest.Cortex.Agents {
-		relPath := parseManifestResourcePath(agent)
-		if scriptTypeExists["agent"] {
-			transformedResource := transformResource("agent", repoDir, relPath, manifestFilePath)
-			cortex.DeployAgent(transformedResource)
-		} else {
-			cortex.DeployAgent(filepath.Join(repoDir, relPath))
-		}
-	}
-	for _, snapshot := range manifest.Cortex.Snapshots {
-		relPath := parseManifestResourcePath(snapshot)
-		if scriptTypeExists["snapshot"] {
-			transformedResource := transformResource("snapshot", repoDir, relPath, manifestFilePath)
-			deploy.DeploySnapshot(cortex, transformedResource, actionImageMapping)
-		} else {
-			deploy.DeploySnapshot(cortex, filepath.Join(repoDir, relPath), actionImageMapping)
-		}
-	}
 	//depsMapping := manifest.Cortex.Dependencies
 	// dependency checking is on hold https://cognitivescale.atlassian.net/browse/FAB-2481
+
+	// deploy campaigns first because they will be zipped with all dependencies and post together. after that we don't have to skip those dependencies
 	var campaigns []string
 	for _, campaign := range manifest.Cortex.Campaign {
 		v6Client, ok := cortex.(*deploy.CortexClientV6)
@@ -264,6 +227,11 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 			log.Fatalln("Configured Cortex URL and token configured are not of v6. Campaigns are supported in v6 onwards.")
 		}
 	}
+	// deploy types
+	for _, typ := range manifest.Cortex.Type {
+		cortex.DeployTypes(filepath.Join(repoDir, parseManifestResourcePath(typ)))
+	}
+	// deploy connections excluding those deployed as part of campaigns
 	for _, connection := range manifest.Cortex.Connection {
 		relPath := parseManifestResourcePath(connection)
 		// skip connections deployed in campaign deployment
@@ -283,7 +251,124 @@ func deployCortexManifest(repoDir string, manifestFilePath string, actionImageMa
 			}
 		}
 	}
-
+	// deploy models, experiments and runs excluding those deployed as part of campaigns
+	for _, model := range manifest.Cortex.Model {
+		v6Client, ok := cortex.(*deploy.CortexClientV6)
+		if ok {
+			relPath := parseManifestResourcePath(model)
+			// skip models deployed in campaign deployment
+			skip := false
+			for _, campaign := range campaigns {
+				if strings.HasPrefix(model, campaign) {
+					skip = true
+					break
+				}
+			}
+			if !skip {
+				if scriptTypeExists["model"] {
+					transformedResource := transformResource("model", repoDir, relPath, manifestFilePath)
+					deploy.DeployModel(*v6Client, transformedResource)
+				} else {
+					deploy.DeployModel(*v6Client, filepath.Join(repoDir, relPath))
+				}
+			}
+		} else {
+			log.Fatalln("Model deployment support is for Cortex v6 onwards")
+		}
+	}
+	for _, experiment := range manifest.Cortex.Experiment {
+		v6Client, ok := cortex.(*deploy.CortexClientV6)
+		if ok {
+			relPath := parseManifestResourcePath(experiment)
+			// skip experiment deployed in campaign deployment
+			skip := false
+			for _, campaign := range campaigns {
+				if strings.HasPrefix(experiment, campaign) {
+					skip = true
+					break
+				}
+			}
+			if !skip {
+				if scriptTypeExists["experiment"] {
+					transformedResource := transformResource("experiment", repoDir, relPath, manifestFilePath)
+					deploy.DeployExperiment(*v6Client, transformedResource)
+				} else {
+					deploy.DeployExperiment(*v6Client, filepath.Join(repoDir, relPath))
+				}
+			}
+		} else {
+			log.Fatalln("Experiment deployment support is for Cortex v6 onwards")
+		}
+	}
+	for _, run := range manifest.Cortex.Run {
+		v6Client, ok := cortex.(*deploy.CortexClientV6)
+		if ok {
+			relPath := parseManifestResourcePath(run)
+			// skip run deployed in campaign deployment
+			skip := false
+			for _, campaign := range campaigns {
+				if strings.HasPrefix(run, campaign) {
+					skip = true
+					break
+				}
+			}
+			if !skip {
+				if scriptTypeExists["run"] {
+					transformedResource := transformResource("run", repoDir, relPath, manifestFilePath)
+					deploy.DeployExperimentRun(*v6Client, transformedResource, repoDir)
+				} else {
+					deploy.DeployExperimentRun(*v6Client, filepath.Join(repoDir, relPath), repoDir)
+				}
+			}
+		} else {
+			log.Fatalln("Run deployment support is for Cortex v6 onwards")
+		}
+	}
+	for _, action := range manifest.Cortex.Action {
+		relPath := parseManifestResourcePath(action)
+		if scriptTypeExists["action"] {
+			transformedResource := transformResource("action", repoDir, relPath, manifestFilePath)
+			cortex.DeployAction(transformedResource)
+		} else {
+			cortex.DeployAction(filepath.Join(repoDir, relPath))
+		}
+	}
+	for _, skill := range manifest.Cortex.Skill {
+		relPath := parseManifestResourcePath(skill)
+		if scriptTypeExists["skill"] {
+			transformedResource := transformResource("skill", repoDir, relPath, manifestFilePath)
+			cortex.DeploySkill(transformedResource)
+		} else {
+			cortex.DeploySkill(filepath.Join(repoDir, relPath))
+		}
+	}
+	for _, agent := range manifest.Cortex.Agent {
+		relPath := parseManifestResourcePath(agent)
+		skip := false
+		for _, campaign := range campaigns {
+			if strings.HasPrefix(agent, campaign) {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			if scriptTypeExists["agent"] {
+				transformedResource := transformResource("agent", repoDir, relPath, manifestFilePath)
+				cortex.DeployAgent(transformedResource)
+			} else {
+				cortex.DeployAgent(filepath.Join(repoDir, relPath))
+			}
+		}
+	}
+	for _, snapshot := range manifest.Cortex.Snapshots {
+		relPath := parseManifestResourcePath(snapshot)
+		if scriptTypeExists["snapshot"] {
+			transformedResource := transformResource("snapshot", repoDir, relPath, manifestFilePath)
+			deploy.DeploySnapshot(cortex, transformedResource, actionImageMapping)
+		} else {
+			deploy.DeploySnapshot(cortex, filepath.Join(repoDir, relPath), actionImageMapping)
+		}
+	}
 	log.Println("Deployed all artifacts from manifest", manifestFilePath)
 	defer os.RemoveAll(filepath.Join(repoDir, "_tmp"))
 }
@@ -346,7 +431,7 @@ func createCortexClientFromConfig() deploy.CortexAPI {
 	var project = strings.TrimSpace(deploy.GetEnvVar("CORTEX_PROJECT"))
 
 	var cortex deploy.CortexAPI
-	if pat != "" || patJson != "" {
+	if pat != "" {
 		cortex = deploy.NewCortexClientPAT(project, pat)
 	} else if patJson != "" {
 		cortex = deploy.NewCortexClientPATContent(project, []byte(patJson))
@@ -412,7 +497,6 @@ func Execute(version string) {
 	rootCmd.SetHelpTemplate("\nVersion: " + version + "\n\n" + rootCmd.HelpTemplate())
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatalln(err)
-		os.Exit(1)
 	}
 }
 
