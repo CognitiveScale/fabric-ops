@@ -69,9 +69,9 @@ func NewCortexClient(url string, account string, user string, password string) C
 		Url:     url,
 		Account: account,
 	}
-	var result, error = post(client, fmt.Sprint("/v2/admin/", account, "/users/authenticate"), body)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(client, fmt.Sprint("/v2/admin/", account, "/users/authenticate"), bytes.NewReader(body))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	client.Token = gjson.Get(string(result), "jwt").String()
 	return client
@@ -87,11 +87,11 @@ func NewCortexClientExistingToken(url string, account string, token string) Cort
 }
 
 func NewCortexClientPAT(project string, pat string) CortexAPI {
-	bytes, err := ioutil.ReadFile(pat)
+	content, err := ioutil.ReadFile(pat)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	return NewCortexClientPATContent(project, bytes)
+	return NewCortexClientPATContent(project, content)
 }
 
 func NewCortexClientPATContent(project string, patToken []byte) CortexAPI {
@@ -112,11 +112,11 @@ func NewCortexClientPATContent(project string, patToken []byte) CortexAPI {
 //Generate JWT token from JWK for Cortex v6
 func generateJwt(data map[string]interface{}) string {
 	var set jose.JSONWebKey
-	bytes, err := json.Marshal(data["jwk"])
+	content, err := json.Marshal(data["jwk"])
 	if err != nil {
 		log.Fatalln(err)
 	}
-	if err := set.UnmarshalJSON([]byte(bytes)); err != nil {
+	if err := set.UnmarshalJSON(content); err != nil {
 		log.Fatalln(err)
 	}
 
@@ -141,6 +141,7 @@ func generateJwt(data map[string]interface{}) string {
 }
 
 //V5
+
 func (c *CortexClientV5) GetURL() string {
 	return c.Url
 }
@@ -154,9 +155,9 @@ func (c *CortexClientV5) GetAccount() string {
 }
 
 func (c *CortexClientV5) GetDockerRegistry() string {
-	var result, error = get(c, "/v3/actions/_config")
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpGet(c, "/v3/actions/_config")
+	if err != nil {
+		log.Fatalln(err)
 	}
 	value := gjson.Get(string(result), "config.dockerPrivateRegistryUrl").String()
 	return fmt.Sprint(value, "/", c.Account)
@@ -172,9 +173,9 @@ func (c *CortexClientV5) DeployAction(filepath string) string {
 }
 
 func (c *CortexClientV5) DeployActionJson(actionType string, content []byte) string {
-	var result, error = post(c, "/v3/actions?actionType="+actionType, content)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(c, "/v3/actions?actionType="+actionType, bytes.NewReader(content))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	return string(result)
 }
@@ -185,13 +186,13 @@ func (c *CortexClientV5) DeploySkill(filepath string) string {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	return c.DeploySkillJson([]byte(content))
+	return c.DeploySkillJson(content)
 }
 
 func (c *CortexClientV5) DeploySkillJson(content []byte) string {
-	var result, error = post(c, "/v3/catalog/skills", content)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(c, "/v3/catalog/skills", bytes.NewReader(content))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	return string(result)
 }
@@ -206,17 +207,17 @@ func (c *CortexClientV5) DeployAgent(filepath string) string {
 }
 
 func (c *CortexClientV5) DeployAgentJson(content []byte) string {
-	var result, error = post(c, "/v3/catalog/agents", content)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(c, "/v3/catalog/agents", bytes.NewReader(content))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	return string(result)
 }
 
 func (c *CortexClientV5) DeployDatasetJson(content []byte) string {
-	var result, error = post(c, "/v3/datasets", content)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(c, "/v3/datasets", bytes.NewReader(content))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	return string(result)
 }
@@ -230,9 +231,9 @@ func (c *CortexClientV5) DeployTypes(filepath string) string {
 }
 
 func (c *CortexClientV5) DeployTypesJson(content []byte) string {
-	var result, error = post(c, "/v3/catalog/types", content)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(c, "/v3/catalog/types", bytes.NewReader(content))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	return string(result)
 }
@@ -246,9 +247,9 @@ func (c *CortexClientV5) DeployConnection(filepath string) string {
 }
 
 func (c *CortexClientV5) DeployConnectionJson(content []byte) string {
-	var result, error = post(c, "/v2/connections", content)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(c, "/v2/connections", bytes.NewReader(content))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	return string(result)
 }
@@ -268,9 +269,9 @@ func (c *CortexClientV6) GetAccount() string {
 
 // TODO update V6 Docker registry logic as per updated Action deployment (when ready)
 func (c *CortexClientV6) GetDockerRegistry() string {
-	var result, error = get(c, "/v3/actions/_config")
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpGet(c, "/v3/actions/_config")
+	if err != nil {
+		log.Fatalln(err)
 	}
 	value := gjson.Get(string(result), "config.dockerPrivateRegistryUrl").String()
 	return fmt.Sprint(value, "/", c.Project)
@@ -286,9 +287,9 @@ func (c *CortexClientV6) DeployAction(filepath string) string {
 }
 
 func (c *CortexClientV6) DeployActionJson(actionType string, content []byte) string {
-	var result, error = post(c, V6_BASE_URI+c.Project+"/actions?actionType="+actionType, content)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(c, V6_BASE_URI+c.Project+"/actions?actionType="+actionType, bytes.NewReader(content))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	return string(result)
 }
@@ -299,13 +300,13 @@ func (c *CortexClientV6) DeploySkill(filepath string) string {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	return c.DeploySkillJson([]byte(content))
+	return c.DeploySkillJson(content)
 }
 
 func (c *CortexClientV6) DeploySkillJson(content []byte) string {
-	var result, error = post(c, V6_BASE_URI+c.Project+"/skills", content)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(c, V6_BASE_URI+c.Project+"/skills", bytes.NewReader(content))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	return string(result)
 }
@@ -320,17 +321,17 @@ func (c *CortexClientV6) DeployAgent(filepath string) string {
 }
 
 func (c *CortexClientV6) DeployAgentJson(content []byte) string {
-	var result, error = post(c, V6_BASE_URI+c.Project+"/agents", content)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(c, V6_BASE_URI+c.Project+"/agents", bytes.NewReader(content))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	return string(result)
 }
 
 func (c *CortexClientV6) DeployDatasetJson(content []byte) string {
-	var result, error = post(c, V6_BASE_URI+c.Project+"/datasets", content)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(c, V6_BASE_URI+c.Project+"/datasets", bytes.NewReader(content))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	return string(result)
 }
@@ -344,9 +345,9 @@ func (c *CortexClientV6) DeployTypes(filepath string) string {
 }
 
 func (c *CortexClientV6) DeployTypesJson(content []byte) string {
-	var result, error = post(c, V6_BASE_URI+c.Project+"/types", content)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(c, V6_BASE_URI+c.Project+"/types", bytes.NewReader(content))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	return string(result)
 }
@@ -360,9 +361,9 @@ func (c *CortexClientV6) DeployConnection(filepath string) string {
 }
 
 func (c *CortexClientV6) DeployConnectionJson(content []byte) string {
-	var result, error = post(c, V6_BASE_URI+c.Project+"/connections", content)
-	if error != nil {
-		log.Fatalln(error)
+	var result, err = httpPost(c, V6_BASE_URI+c.Project+"/connections", bytes.NewReader(content))
+	if err != nil {
+		log.Fatalln(err)
 	}
 	return string(result)
 }
@@ -379,7 +380,7 @@ func GetJsonContent(filepath string) ([]byte, error) {
 }
 
 func DeployCampaign(cortex CortexClientV6, filename string, deployable bool, overwrite bool) error {
-	url := V6_BASE_URI + cortex.Project + "/campaigns/import?deployable=" + strconv.FormatBool(deployable) + "&overwrite=" + strconv.FormatBool(overwrite)
+	campaignUrl := V6_BASE_URI + cortex.Project + "/campaigns/import?deployable=" + strconv.FormatBool(deployable) + "&overwrite=" + strconv.FormatBool(overwrite)
 	bodyBuf := &bytes.Buffer{}
 	bodyWriter := multipart.NewWriter(bodyBuf)
 
@@ -398,13 +399,14 @@ func DeployCampaign(cortex CortexClientV6, filename string, deployable bool, ove
 
 	_, err = io.Copy(fileWriter, fh)
 	if err != nil {
+		log.Println(err)
 		return err
 	}
 
 	contentType := bodyWriter.FormDataContentType()
 	bodyWriter.Close()
 
-	resp, err := fileUpload(&cortex, url, bodyBuf.Bytes(), contentType, HTTP_POST)
+	resp, err := fileUpload(&cortex, campaignUrl, bodyBuf, contentType, HTTP_POST)
 	if err != nil {
 		log.Println(string(resp))
 		return err
@@ -429,13 +431,13 @@ func DeployModel(cortex CortexClientV6, filepath string) string {
 		modelBody := model.Value().(map[string]interface{})
 		modelBody["status"] = "In development"
 		initial, _ := json.Marshal(modelBody)
-		res, err := post(&cortex, V6_BASE_URI+cortex.Project+"/models", initial)
+		res, err := httpPost(&cortex, V6_BASE_URI+cortex.Project+"/models", bytes.NewReader(initial))
 		if err != nil {
 			log.Println(string(res))
 			log.Fatalln(err)
 		}
 	}
-	res, err := post(&cortex, V6_BASE_URI+cortex.Project+"/models", content)
+	res, err := httpPost(&cortex, V6_BASE_URI+cortex.Project+"/models", bytes.NewReader(content))
 	if err != nil {
 		log.Println(string(res))
 		log.Fatalln(err)
@@ -448,7 +450,7 @@ func DeployExperiment(cortex CortexClientV6, filepath string) string {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	res, err := post(&cortex, V6_BASE_URI+cortex.Project+"/experiments", content)
+	res, err := httpPost(&cortex, V6_BASE_URI+cortex.Project+"/experiments", bytes.NewReader(content))
 	if err != nil {
 		log.Println(string(res))
 		log.Fatalln(err)
@@ -467,19 +469,20 @@ func DeployExperimentRun(cortex CortexClientV6, filename string, repoDir string)
 	artifacts := run.Get("artifacts")
 	path := V6_BASE_URI + cortex.Project + "/experiments/" + url.PathEscape(expName) + "/runs"
 	// experiment run is not upsert API, so deleting and inserting
-	delete(&cortex, path+"/"+runId)
-	res, err := post(&cortex, path, content)
+	httpDelete(&cortex, path+"/"+runId)
+	res, err := httpPost(&cortex, path, bytes.NewReader(content))
 	if err != nil {
 		log.Println(string(res))
 		log.Fatalln(err)
 	}
 	if artifacts.Exists() {
 		for k, v := range artifacts.Value().(map[string]interface{}) {
-			content, err := ioutil.ReadFile(filepath.Join(repoDir, ARTIFACT_DIR, v.(string)))
+			artifactFile := filepath.Join(repoDir, ARTIFACT_DIR, v.(string))
+			body, err := os.Open(artifactFile)
 			if err != nil {
-				log.Fatalln(err)
+				log.Fatal("Failed to read Model artifact file ", artifactFile)
 			}
-			msg, err := fileUpload(&cortex, path+"/"+runId+"/artifacts/"+k, content, "application/octet-stream", HTTP_PUT)
+			msg, err := fileUpload(&cortex, path+"/"+runId+"/artifacts/"+k, body, "application/octet-stream", HTTP_PUT)
 			if err != nil {
 				log.Fatalln(string(msg), err)
 			}
@@ -549,19 +552,19 @@ func DeploySnapshot(cortex CortexAPI, filepath string, actionImageMapping map[st
 	log.Println(logs)
 }
 
-func get(cortex CortexAPI, path string) ([]byte, error) {
+func httpGet(cortex CortexAPI, path string) ([]byte, error) {
 	return do(cortex, path, HTTP_GET, nil, "application/json")
 }
 
-func post(cortex CortexAPI, path string, body []byte) ([]byte, error) {
+func httpPost(cortex CortexAPI, path string, body io.Reader) ([]byte, error) {
 	return do(cortex, path, HTTP_POST, body, "application/json")
 }
 
-func delete(cortex CortexAPI, path string) ([]byte, error) {
+func httpDelete(cortex CortexAPI, path string) ([]byte, error) {
 	return do(cortex, path, HTTP_DELETE, nil, "application/json")
 }
 
-func fileUpload(cortex CortexAPI, path string, body []byte, contentType string, method string) ([]byte, error) {
+func fileUpload(cortex CortexAPI, path string, body io.Reader, contentType string, method string) ([]byte, error) {
 	return do(cortex, path, method, body, contentType)
 }
 
@@ -607,13 +610,13 @@ func setupHttpClient() *http.Client {
 
 }
 
-func do(cortex CortexAPI, path string, method string, body []byte, contentType string) ([]byte, error) {
-	url, err := url.Parse(cortex.GetURL() + path)
+func do(cortex CortexAPI, path string, method string, body io.Reader, contentType string) ([]byte, error) {
+	serviceUrl, err := url.Parse(cortex.GetURL() + path)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	request := &http.Request{
-		URL:    url,
+		URL:    serviceUrl,
 		Method: method,
 		Header: map[string][]string{
 			"Content-Type":  {contentType},
@@ -621,23 +624,23 @@ func do(cortex CortexAPI, path string, method string, body []byte, contentType s
 		},
 	}
 	if body != nil {
-		request.Body = ioutil.NopCloser(bytes.NewReader(body))
+		request.Body = ioutil.NopCloser(body)
 	}
 	//lazy initialize
 	if client == nil {
 		client = setupHttpClient()
 	}
-	response, error := client.Do(request)
-	if error != nil {
+	response, e := client.Do(request)
+	if e != nil {
 		//errors like connection refused, address not found etc
-		return nil, error
+		return nil, e
 	}
 	var data, _ = ioutil.ReadAll(response.Body)
 	if response.StatusCode > 201 {
-		error = errors.New(fmt.Sprint("URL ", url.String(), " failed with status ", response.StatusCode, " Error: ", string(data)))
+		e = errors.New(fmt.Sprint("URL ", serviceUrl.String(), " failed with status ", response.StatusCode, " Error: ", string(data)))
 	}
 	defer response.Body.Close()
-	return data, error
+	return data, e
 }
 
 func DockerImageName(dockerTag string) string {
@@ -646,6 +649,7 @@ func DockerImageName(dockerTag string) string {
 }
 
 //replaced viper.GetString to remove vulnerable dependencies FAB-789 and FAB-792
+
 func GetEnvVar(varname string) string {
 	return os.Getenv(varname)
 }
