@@ -60,18 +60,23 @@ docker push ${DOCKER_IMAGE}
 */
 // Later this will be replaced with daemonless & rootless build
 func BuildActionImage(namespace string, name string, version string, dockerfile string, buildContext string, dockerRegistry string) string {
-	var dockerImage = fmt.Sprint(namespace, "/", name, ":", version)
+	var dockerImage = fmt.Sprint( name, ":", version)
+	if len(namespace) > 0 {
+		dockerImage = fmt.Sprint(namespace, "/", dockerImage)
+	}
 	var dockerTag = fmt.Sprint(dockerRegistry, "/", dockerImage)
-
 	var dockerBuildCmd = strings.Join([]string{"docker build -t", dockerImage, "-f", dockerfile, buildContext}, " ")
 	log.Println("Building: ", dockerBuildCmd)
 	NativeExitOnError(dockerBuildCmd)
+	if len(dockerRegistry) > 1 {
+		var dockerTagCmd = strings.Join([]string{"docker tag", dockerImage, dockerTag}, " ")
+		NativeExitOnError(dockerTagCmd)
+		log.Println("Pushing docker image tag: ", dockerTag)
+		NativeExitOnError(fmt.Sprint("docker push ", dockerTag))
+	} else {
+		log.Println("Docker registry not provided skipping docker push")
+	}
 
-	var dockerTagCmd = strings.Join([]string{"docker tag", dockerImage, dockerTag}, " ")
-	NativeExitOnError(dockerTagCmd)
-
-	log.Println("Pushing docker image tag: ", dockerTag)
-	NativeExitOnError(fmt.Sprint("docker push ", dockerTag))
 
 	return dockerTag
 }
